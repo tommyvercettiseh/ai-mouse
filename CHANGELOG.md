@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0
+
+### Changed
+- Volledig vernieuwde moderne, minimalistische hoofdinterface
+- Donkere gradient header met paarse en blauwe accenten
+- Bediening teruggebracht tot Record, Pauze, Opslaan, Replay profiel en Kliktest
+- Masterprofiel-knop groot en permanent zichtbaar rechtsonder
+- Profielstatus toont direct of een profiel actief is
+- Kliktest kan rechtstreeks vanuit de hoofdapp worden geopend
+- Duidelijkere melding wanneer nog geen profiel bestaat
+
+### Added
+- Automatische knoptekst: `Masterprofiel maken` of `Masterprofiel vernieuwen`
+- Directe uitleg na het opslaan van een opname
+- Moderne grid-achtergrond voor live trace en profielreplay
+
+### Safety
+- Kliktest en replay blijven uitsluitend visueel binnen de lokale app
+- Geen toetsenbordinput of getypte tekst
+- Geen besturing van externe applicaties
+
 ## 0.4.0
 
 ### Added
