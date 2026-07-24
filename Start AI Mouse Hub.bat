@@ -3,20 +3,33 @@ setlocal
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
+  echo Virtuele omgeving wordt gemaakt...
   py -3 -m venv .venv 2>nul
   if errorlevel 1 python -m venv .venv
 )
 
 if not exist ".venv\Scripts\python.exe" (
   echo Python 3 kon niet worden gestart.
+  echo Installeer Python 3 en vink "Add Python to PATH" aan.
   pause
   exit /b 1
 )
 
 if not exist "data\logs" mkdir "data\logs"
-".venv\Scripts\python.exe" -c "import tkinter" >> "data\logs\launcher.log" 2>&1
+echo [%date% %time%] AI Mouse launcher gestart>> "data\logs\launcher.log"
+
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet --upgrade pip >> "data\logs\launcher.log" 2>&1
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet pynput >> "data\logs\launcher.log" 2>&1
 if errorlevel 1 (
-  echo Tkinter ontbreekt. Controleer je Python-installatie.
+  echo De globale muisdependency kon niet worden geinstalleerd.
+  echo Bekijk data\logs\launcher.log
+  pause
+  exit /b 1
+)
+
+".venv\Scripts\python.exe" -c "import tkinter; import pynput; from ai_mouse_hub.global_recorder import GlobalMouseRecorder" >> "data\logs\launcher.log" 2>&1
+if errorlevel 1 (
+  echo Een vereiste ontbreekt. Bekijk data\logs\launcher.log
   pause
   exit /b 1
 )
