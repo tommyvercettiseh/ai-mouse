@@ -1,8 +1,8 @@
 {
-  "name": "AI Mouse",
+  "name": "AI Mouse Hub",
   "slug": "ai-mouse",
-  "version": "0.4.0",
-  "description": "Minimalistische lokale Windows-demo voor globale muisopname, fading profielreplay en een visuele profielkliktest.",
+  "version": "0.5.0",
+  "description": "Moderne minimalistische lokale Windows-demo voor globale muisopname, profielbouw, fading replay en een visuele kliktest.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
   "secondary_commands": [
@@ -19,7 +19,8 @@
     "warp-filtering",
     "fading-replay",
     "profile-builder",
-    "visual-click-test"
+    "visual-click-test",
+    "modern-gradient-ui"
   ],
   "privacy": {
     "local_only": true,
