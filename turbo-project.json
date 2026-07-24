@@ -1,10 +1,14 @@
 {
   "name": "AI Mouse",
   "slug": "ai-mouse",
-  "version": "0.3.0",
-  "description": "Minimalistische lokale Windows-demo voor globale muisopname en fading profielreplay.",
+  "version": "0.4.0",
+  "description": "Minimalistische lokale Windows-demo voor globale muisopname, fading profielreplay en een visuele profielkliktest.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
+  "secondary_commands": [
+    "Start Profile Click Test.bat",
+    "Start Profile Stress Lab.bat"
+  ],
   "default_port": 0,
   "health_url": "",
   "platform": "windows",
@@ -14,11 +18,13 @@
     "multi-monitor",
     "warp-filtering",
     "fading-replay",
-    "profile-builder"
+    "profile-builder",
+    "visual-click-test"
   ],
   "privacy": {
     "local_only": true,
     "keyboard_recording": false,
-    "typed_text_recording": false
+    "typed_text_recording": false,
+    "external_app_control": false
   }
 }
