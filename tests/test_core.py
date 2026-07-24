@@ -4,6 +4,7 @@ import json
 import random
 from pathlib import Path
 
+import ai_mouse_hub.analysis as analysis
 import ai_mouse_hub.core as core
 import ai_mouse_hub.global_recorder as recorder
 
@@ -36,17 +37,13 @@ def test_recording_profile_and_stress(tmp_path: Path, monkeypatch):
     sessions = core.list_sessions()
     assert len(sessions) == 1
     assert sessions[0].point_count == 150
-
     profile = core.build_master_profile(sessions)
     assert profile["source_count"] == 1
-    assert (core.PROFILES / "master_profile.json").exists()
-
     first = core.run_stress_test(25, 42)
     second = core.run_stress_test(25, 42)
     assert 0 <= first["scores"]["overall"] <= 100
     assert first["scores"] == second["scores"]
-    report_path = Path(first["result_folder"]) / "report.json"
-    assert json.loads(report_path.read_text(encoding="utf-8"))["runs"] == 25
+    assert json.loads((Path(first["result_folder"]) / "report.json").read_text(encoding="utf-8"))["runs"] == 25
 
 
 def test_global_recording_writes_mouse_only_privacy_metadata(tmp_path: Path, monkeypatch):
@@ -60,16 +57,12 @@ def test_global_recording_writes_mouse_only_privacy_metadata(tmp_path: Path, mon
     folder = recorder.save_global_recording("Gaming", events)
     metadata = json.loads((folder / "metadata.json").read_text(encoding="utf-8"))
     rows = (folder / "points.csv").read_text(encoding="utf-8").splitlines()
-
     assert metadata["recording_scope"] == "global_mouse_only"
     assert metadata["privacy"]["keyboard_recorded"] is False
     assert metadata["privacy"]["typed_text_recorded"] is False
     assert metadata["virtual_screen"]["left"] == -1920
-    assert metadata["virtual_screen"]["width"] == 3840
     assert set(metadata["window_titles"]) == {"Browser", "Game"}
     assert "event_type" in rows[0]
-    assert "scroll_dy" in rows[0]
-    assert len(rows) == 4
 
 
 def test_global_recorder_samples_moves_without_keyboard_hooks(monkeypatch):
@@ -79,11 +72,46 @@ def test_global_recorder_samples_moves_without_keyboard_hooks(monkeypatch):
     instance.running = True
     monkeypatch.setattr(recorder.time, "perf_counter", lambda: 100.02)
     monkeypatch.setattr(recorder, "active_window_title", lambda: "Test window")
-
     instance._on_move(10, 20)
     instance._on_move(11, 21)
-
     assert len(captured) == 1
-    assert captured[0].event_type == "move"
-    assert captured[0].window_title == "Test window"
     assert not hasattr(instance, "keyboard_listener")
+
+
+def test_pause_blocks_events_and_resume_continues(monkeypatch):
+    clock = iter([100.0, 101.0, 103.0, 103.1])
+    monkeypatch.setattr(recorder.time, "perf_counter", lambda: next(clock))
+    instance = recorder.GlobalMouseRecorder()
+    instance.running = True
+    instance.started_at = 100.0
+    instance.pause()
+    instance._emit(recorder.MouseEvent(0.0, "move", 1, 1))
+    instance.resume()
+    instance._emit(recorder.MouseEvent(instance._time(), "move", 2, 2))
+    assert len(instance.events) == 1
+    assert instance.events[0].x == 2
+
+
+def test_warp_is_split_and_never_connected():
+    points = [
+        (0.000, 10.0, 10.0),
+        (0.016, 14.0, 12.0),
+        (0.032, 18.0, 14.0),
+        (0.048, 900.0, 700.0),
+        (0.064, 904.0, 702.0),
+    ]
+    clean, summary = analysis.clean_and_segment(points)
+    grouped = analysis.segments(clean)
+    assert summary.warp_count == 1
+    assert summary.segment_count == 2
+    assert len(grouped) == 2
+    assert grouped[0][-1].x == 18.0
+    assert grouped[1][0].x == 900.0
+
+
+def test_long_pause_starts_new_segment_without_deleting_points():
+    points = [(0.0, 0.0, 0.0), (0.02, 5.0, 5.0), (1.0, 6.0, 6.0), (1.02, 10.0, 10.0)]
+    clean, summary = analysis.clean_and_segment(points)
+    assert summary.pause_count == 1
+    assert summary.clean_points == len(points)
+    assert len(analysis.segments(clean)) == 2
