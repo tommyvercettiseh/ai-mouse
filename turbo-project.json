@@ -1,0 +1,10 @@
+{
+  "name": "AI Mouse Profile Hub",
+  "slug": "ai-mouse",
+  "version": "0.1.0",
+  "description": "Standalone lokale demo voor muisrecordings, profielreplay en stresstests.",
+  "preview": "docs/previews/latest.png",
+  "start_command": "Start AI Mouse Hub.bat",
+  "default_port": 0,
+  "health_url": ""
+}
