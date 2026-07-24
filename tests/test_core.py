@@ -7,6 +7,7 @@ from pathlib import Path
 import ai_mouse_hub.analysis as analysis
 import ai_mouse_hub.core as core
 import ai_mouse_hub.global_recorder as recorder
+from ai_mouse_hub.click_test import path_metrics, transform_template
 
 
 def test_normalize_and_replay():
@@ -115,3 +116,23 @@ def test_long_pause_starts_new_segment_without_deleting_points():
     assert summary.pause_count == 1
     assert summary.clean_points == len(points)
     assert len(analysis.segments(clean)) == 2
+
+
+def test_click_test_maps_profile_path_to_exact_endpoints():
+    template = [(0.0, 0.0), (0.3, 0.2), (0.7, 0.8), (1.0, 1.0)]
+    start = (100.0, 140.0)
+    target = (650.0, 420.0)
+    path = transform_template(template, start, target, random.Random(42))
+    assert path[0] == start
+    assert path[-1] == target
+    assert len(path) == len(template)
+
+
+def test_click_test_metrics_report_path_and_overshoot():
+    target = (100.0, 0.0)
+    path = [(0.0, 0.0), (80.0, 0.0), (125.0, 0.0), (105.0, 0.0), target]
+    result = path_metrics(path, target, target_radius=10.0)
+    assert result.direct_distance == 100.0
+    assert result.travelled_distance > result.direct_distance
+    assert result.overshoot_px == 15.0
+    assert result.hit_distance_px == 0.0
