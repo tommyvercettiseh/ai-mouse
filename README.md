@@ -4,15 +4,21 @@ Minimalistische lokale Windows-demo voor het opnemen en visueel terugspelen van 
 
 ## Starten
 
-Dubbelklik op:
+Hoofdapp:
 
 ```text
 Start AI Mouse Hub.bat
 ```
 
-De launcher maakt automatisch een virtuele omgeving en installeert de benodigde dependency voor globale muistracking.
+Visuele profieltest:
 
-## Gebruik
+```text
+Start Profile Click Test.bat
+```
+
+De launchers maken automatisch een virtuele omgeving en installeren de benodigde dependency voor globale muistracking.
+
+## Hoofdworkflow
 
 1. Kies een label, bijvoorbeeld `Browsing` of `Gaming`.
 2. Klik **Record**.
@@ -22,6 +28,21 @@ De launcher maakt automatisch een virtuele omgeving en installeert de benodigde 
 6. Selecteer een opname.
 7. Klik **Profiel vernieuwen**.
 8. Klik **Replay profiel** voor de lokale fading-trace.
+
+## Profile Click Test
+
+De losse kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen.
+
+Je ziet daarbij:
+
+- het volledige profielpad;
+- approach in blauw;
+- correctie en overshoot in paars;
+- het klikmoment in groen;
+- de directe lijn als grijze referentie;
+- directe afstand, werkelijk pad, overshoot, correcties en klikafstand.
+
+De test bestuurt geen andere applicaties en verplaatst je echte Windows-cursor niet.
 
 ## Wat de app doet
 
@@ -48,4 +69,4 @@ data/logs/
 
 ## Veiligheidsgrens
 
-Replay is een visuele lokale demo en bestuurt geen externe applicaties.
+Replay en Profile Click Test zijn visuele lokale demo's en besturen geen externe applicaties.
