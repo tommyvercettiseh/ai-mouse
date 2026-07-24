@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+- Pauze en hervat tijdens globale opname
+- Automatische segmentatie op stilstand en lange pauzes
+- Cursorwarp-detectie op basis van afstand, tijd en snelheid
+- Replay die losse segmenten nooit kunstmatig met elkaar verbindt
+- Profielreplay met fading trace binnen de lokale app
+- Tests voor warpfiltering, pauzes en recorderstatus
+
+### Changed
+- Interface teruggebracht tot Record, Pauze, Opslaan, sessiekeuze en Replay
+- Uitgebreide analyse draait automatisch onder de motorkap
+- README herschreven rond de eenvoudige workflow
+
+### Safety
+- Verdachte jumps blijven in de ruwe opname maar worden niet als doorlopende beweging afgespeeld
+- Geen toetsenbordinput of getypte tekst
+- Replay bestuurt geen externe applicaties
+
 ## 0.2.0
 
 ### Added
@@ -7,33 +27,12 @@
 - Ondersteuning voor meerdere schermen en negatieve schermcoördinaten
 - Registratie van bewegingen, klikken, scrollen en actief venstertitel
 - Visuele live trace en replay met instelbare fading
-- Replay-snelheid van 0,25× tot 4×
-- Privacy metadata die bevestigt dat toetsenbord en ingevoerde tekst niet worden opgenomen
-- Automatische installatie van `pynput` via de Windows-launcher
-- Tests voor globale eventdata, multi-monitor metadata en privacyvelden
-
-### Changed
-- De lokale canvasrecorder is vervangen door globale tracking
-- De interface gebruikt de goedgekeurde donkere AI Mouse-layout
-- Versie verhoogd naar 0.2.0
-
-### Safety
-- Er worden geen toetsen, wachtwoorden of ingevoerde teksten geregistreerd
-- Replay vindt alleen visueel binnen de AI Mouse Hub plaats
-- Externe applicaties worden niet door replay of Stress Lab bestuurd
-- Alle data blijft lokaal onder `data/`
+- Privacy metadata en automatische installatie van `pynput`
 
 ## 0.1.0
 
 ### Added
-- Standalone lokale muisrecorder binnen eigen canvas
-- Gelabelde sessies en include/exclude-beheer
-- Masterprofiel en profielhistorie
-- Echte replayvergelijking
-- Profile Stress Lab met JSON-rapporten
+- Standalone lokale muisrecorder
+- Gelabelde sessies en masterprofiel
+- Replayvergelijking en Stress Lab
 - Windows-launchers, logging, tests en GitHub Actions
-
-### Safety
-- Geen besturing van externe applicaties
-- Ruwe recordings worden niet overschreven
-- Alle data blijft lokaal onder `data/`
