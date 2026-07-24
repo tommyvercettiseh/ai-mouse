@@ -1,10 +1,23 @@
 {
   "name": "AI Mouse Profile Hub",
   "slug": "ai-mouse",
-  "version": "0.1.0",
-  "description": "Standalone lokale demo voor muisrecordings, profielreplay en stresstests.",
+  "version": "0.2.0",
+  "description": "Standalone lokale Windows-app voor globale muistracking, fading replay, profielanalyse en stresstests.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
   "default_port": 0,
-  "health_url": ""
+  "health_url": "",
+  "platform": "windows",
+  "capabilities": [
+    "global-mouse-tracking",
+    "multi-monitor",
+    "fading-replay",
+    "profile-builder",
+    "stress-lab"
+  ],
+  "privacy": {
+    "local_only": true,
+    "keyboard_recording": false,
+    "typed_text_recording": false
+  }
 }
