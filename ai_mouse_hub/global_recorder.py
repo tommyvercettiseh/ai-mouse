@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import csv
 import ctypes
-import json
-import queue
 import threading
 import time
 from dataclasses import dataclass
@@ -30,7 +28,6 @@ class MouseEvent:
 
 
 def active_window_title() -> str:
-    """Return the current foreground-window title on Windows without reading text input."""
     try:
         hwnd = ctypes.windll.user32.GetForegroundWindow()
         length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
@@ -42,7 +39,6 @@ def active_window_title() -> str:
 
 
 def virtual_screen_bounds() -> tuple[int, int, int, int]:
-    """Return left, top, width and height for the complete Windows virtual desktop."""
     try:
         user32 = ctypes.windll.user32
         return (
@@ -56,7 +52,7 @@ def virtual_screen_bounds() -> tuple[int, int, int, int]:
 
 
 class GlobalMouseRecorder:
-    """Records global mouse movement, clicks and scrolling. It never records keys or typed text."""
+    """Global mouse-only recorder. It never records keys or typed text."""
 
     def __init__(self, on_event: Callable[[MouseEvent], None] | None = None, sample_interval: float = 0.008):
         self.on_event = on_event
@@ -65,19 +61,31 @@ class GlobalMouseRecorder:
         self.started_at = 0.0
         self.listener: mouse.Listener | None = None
         self.running = False
+        self.paused = False
+        self._paused_total = 0.0
+        self._pause_started = 0.0
         self._last_move_at = -1.0
         self._lock = threading.Lock()
 
     def _emit(self, event: MouseEvent) -> None:
+        if not self.running or self.paused:
+            return
         with self._lock:
             self.events.append(event)
         if self.on_event:
             self.on_event(event)
 
     def _time(self) -> float:
-        return max(0.0, time.perf_counter() - self.started_at)
+        paused_now = time.perf_counter() - self._pause_started if self.paused else 0.0
+        return max(0.0, time.perf_counter() - self.started_at - self._paused_total - paused_now)
+
+    @property
+    def elapsed(self) -> float:
+        return self._time()
 
     def _on_move(self, x: int, y: int) -> None:
+        if self.paused:
+            return
         now = self._time()
         if self._last_move_at >= 0 and now - self._last_move_at < self.sample_interval:
             return
@@ -95,12 +103,29 @@ class GlobalMouseRecorder:
             return
         self.events.clear()
         self.started_at = time.perf_counter()
+        self._paused_total = 0.0
+        self._pause_started = 0.0
         self._last_move_at = -1.0
         self.running = True
+        self.paused = False
         self.listener = mouse.Listener(on_move=self._on_move, on_click=self._on_click, on_scroll=self._on_scroll)
         self.listener.start()
 
+    def pause(self) -> None:
+        if self.running and not self.paused:
+            self.paused = True
+            self._pause_started = time.perf_counter()
+
+    def resume(self) -> None:
+        if self.running and self.paused:
+            self._paused_total += time.perf_counter() - self._pause_started
+            self._pause_started = 0.0
+            self.paused = False
+            self._last_move_at = -1.0
+
     def stop(self) -> list[MouseEvent]:
+        if self.paused:
+            self.resume()
         self.running = False
         if self.listener is not None:
             self.listener.stop()
