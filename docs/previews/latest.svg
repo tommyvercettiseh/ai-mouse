@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#08111f"/>
+  <rect x="24" y="24" width="1392" height="852" rx="18" fill="#101b2d" stroke="#24344f"/>
+  <text x="64" y="82" fill="#f5f7ff" font-family="Segoe UI" font-size="34" font-weight="700">AI Mouse Profile Hub</text>
+  <text x="64" y="116" fill="#91a0b8" font-family="Segoe UI" font-size="17">Standalone recorder · replay · profile stress testing</text>
+  <rect x="64" y="154" width="520" height="310" rx="14" fill="#142238" stroke="#24344f"/>
+  <text x="88" y="194" fill="#f5f7ff" font-family="Segoe UI" font-size="21" font-weight="700">1  Record inside local canvas</text>
+  <rect x="88" y="222" width="472" height="210" rx="10" fill="#07101d" stroke="#24344f"/>
+  <path d="M112 388 C190 258 286 420 364 278 S506 352 534 252" fill="none" stroke="#eaf0ff" stroke-width="4"/>
+  <circle cx="112" cy="388" r="7" fill="#8b4dff"/><circle cx="534" cy="252" r="14" fill="none" stroke="#ff4d5f" stroke-width="4"/>
+  <rect x="608" y="154" width="768" height="310" rx="14" fill="#142238" stroke="#24344f"/>
+  <text x="632" y="194" fill="#f5f7ff" font-family="Segoe UI" font-size="21" font-weight="700">2  Sessions</text>
+  <g fill="#91a0b8" font-family="Segoe UI" font-size="15"><text x="632" y="236">Created</text><text x="840" y="236">Label</text><text x="1010" y="236">Duration</text><text x="1160" y="236">Profile</text></g>
+  <g fill="#f5f7ff" font-family="Segoe UI" font-size="16"><text x="632" y="282">2026-07-24 08:04</text><text x="840" y="282">Browsing</text><text x="1010" y="282">03:42</text><text x="1160" y="282">Yes</text><text x="632" y="326">2026-07-24 07:48</text><text x="840" y="326">Precision</text><text x="1010" y="326">02:16</text><text x="1160" y="326">Yes</text></g>
+  <rect x="64" y="494" width="520" height="318" rx="14" fill="#142238" stroke="#24344f"/>
+  <text x="88" y="534" fill="#f5f7ff" font-family="Segoe UI" font-size="21" font-weight="700">3  Master profile</text>
+  <text x="88" y="582" fill="#91a0b8" font-family="Segoe UI" font-size="16">Version 0.1.0 · 12 sessions · 4 labels</text>
+  <rect x="88" y="622" width="472" height="52" rx="10" fill="#3677ff"/><text x="164" y="655" fill="white" font-family="Segoe UI" font-size="17" font-weight="700">Build profile from included sessions</text>
+  <rect x="88" y="690" width="472" height="52" rx="10" fill="#8b4dff"/><text x="184" y="723" fill="white" font-family="Segoe UI" font-size="17" font-weight="700">Run 100x Profile Stress Lab</text>
+  <rect x="608" y="494" width="768" height="318" rx="14" fill="#142238" stroke="#24344f"/>
+  <text x="632" y="534" fill="#f5f7ff" font-family="Segoe UI" font-size="21" font-weight="700">4  Replay compare</text>
+  <rect x="632" y="560" width="346" height="210" rx="10" fill="#07101d" stroke="#24344f"/><rect x="1006" y="560" width="346" height="210" rx="10" fill="#07101d" stroke="#24344f"/>
+  <path d="M654 724 C720 588 806 742 862 614 S938 690 956 606" fill="none" stroke="#eaf0ff" stroke-width="3"/>
+  <path d="M1028 724 C1098 596 1172 730 1230 620 S1316 680 1330 608" fill="none" stroke="#eaf0ff" stroke-width="3"/>
+</svg>
