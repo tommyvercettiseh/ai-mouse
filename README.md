@@ -1,6 +1,6 @@
-# AI Mouse
+# AI Mouse Hub
 
-Minimalistische lokale Windows-demo voor het opnemen en visueel terugspelen van je eigen muisprofiel.
+Moderne, minimalistische lokale Windows-demo voor het opnemen, bouwen en visueel testen van je eigen muisprofiel.
 
 ## Starten
 
@@ -10,7 +10,7 @@ Hoofdapp:
 Start AI Mouse Hub.bat
 ```
 
-Visuele profieltest:
+Losse visuele profieltest:
 
 ```text
 Start Profile Click Test.bat
@@ -20,18 +20,40 @@ De launchers maken automatisch een virtuele omgeving en installeren de benodigde
 
 ## Hoofdworkflow
 
-1. Kies een label, bijvoorbeeld `Browsing` of `Gaming`.
+1. Kies rechts een label, bijvoorbeeld `Browsing` of `Gaming`.
 2. Klik **Record**.
-3. Gebruik je computer normaal over al je schermen.
+3. Gebruik je computer normaal.
 4. Gebruik **Pauze/Hervat** wanneer nodig.
 5. Klik **Opslaan**.
-6. Selecteer een opname.
-7. Klik **Profiel vernieuwen**.
-8. Klik **Replay profiel** voor de lokale fading-trace.
+6. Selecteer links onderin de opname.
+7. Klik rechts onderin op de grote paarse knop **Masterprofiel maken**.
+8. Gebruik daarna **Replay profiel** of **Kliktest**.
+
+Zodra een profiel bestaat verandert de knop automatisch in **Masterprofiel vernieuwen**.
+
+Het profielbestand staat lokaal op:
+
+```text
+data/profiles/master_profile.json
+```
+
+## Moderne interface
+
+De hoofdapp bevat bewust alleen de belangrijkste onderdelen:
+
+- Record;
+- Pauze/Hervat;
+- Opslaan;
+- Replay profiel;
+- Kliktest;
+- een duidelijke Masterprofiel-knop;
+- live fading mouse trace.
+
+De visuele stijl gebruikt een donkere interface met subtiele paarse en blauwe gradients, afgeronde panelen en heldere statuskleuren.
 
 ## Profile Click Test
 
-De losse kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen.
+De kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen.
 
 Je ziet daarbij:
 
