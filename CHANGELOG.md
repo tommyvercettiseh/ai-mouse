@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.1
+
+### Added
+- Automatische masterprofielupdate na een voltooide menselijke Aim Lab-run
+- Combinatie van gewone recordings en menselijke Aim Lab-templates
+- Extra selectiegewicht voor Aim Lab-data met bekende targets
+- Rechtermuisknop reset alleen de huidige targetactie
+- Logging van misklikken en handmatige resets per target
+
+### Fixed
+- Meerdere misklikken laten de Aim Lab niet meer vastlopen
+- Mouse-downstatus wordt na iedere misser direct opgeschoond
+- Profielreplay laadt na een menselijke run meteen het vernieuwde masterprofiel
+
+### Safety
+- Geen toetsenbordinput of getypte tekst
+- Geen externe cursorbesturing of externe clicks
+
 ## 0.9.0
 
 ### Added
