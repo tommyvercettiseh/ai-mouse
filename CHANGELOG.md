@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+- Zelfgespeelde Aim Lab-modus waarin de gebruiker echte targets aanklikt
+- Ronde en vierkante targets in klein, middel en groot
+- Korte, middelgrote en lange bewegingen
+- Extra nadruk op hoeken, randen en diagonale verplaatsingen
+- Logging van reactietijd, bewegingstijd, clickdelay en click-holdduur
+- Volledige target- en padlogging naar `data/aim_lab`
+- Aparte profielreplay-modus voor vergelijking met de menselijke poging
+
+### Changed
+- De Aim Lab start standaard als menselijke test in plaats van automatische profielanimatie
+- Bestaande recordings blijven bron voor spontane pre-click-curves en timing
+- Zelfgespeelde Aim Lab-sessies worden de primaire bron voor exacte targetanalyse
+
+### Safety
+- Geen toetsenbordinput of getypte tekst
+- Geen screenshots
+- Profielreplay bestuurt geen externe applicaties
+
 ## 0.8.0
 
 ### Added
