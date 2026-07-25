@@ -5,7 +5,7 @@ import math
 import random
 import time
 import tkinter as tk
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -35,13 +35,29 @@ class ActionMetrics:
     overshoot_px: float
     corrections: int
     final_offset_px: float
-    duration_ms: float
+    reaction_ms: float
+    movement_ms: float
     click_delay_ms: float
+    click_hold_ms: float
 
 
-def path_metrics(path: list[tuple[float, float, float]], target: tuple[float, float], radius: float, click_delay: float) -> ActionMetrics:
+def _inside_target(x: float, y: float, target: tuple[float, float], radius: float, shape: str) -> bool:
+    dx, dy = x - target[0], y - target[1]
+    if shape == "circle":
+        return dx * dx + dy * dy <= radius * radius
+    return abs(dx) <= radius and abs(dy) <= radius
+
+
+def path_metrics(
+    path: list[tuple[float, float, float]],
+    target: tuple[float, float],
+    radius: float,
+    click_delay: float,
+    reaction_s: float = 0.0,
+    click_hold_s: float = 0.0,
+) -> ActionMetrics:
     if len(path) < 2:
-        return ActionMetrics(0, 0, 0, 0, 0, 0, click_delay * 1000)
+        return ActionMetrics(0, 0, 0, 0, 0, reaction_s * 1000, 0, click_delay * 1000, click_hold_s * 1000)
     xy = [(x, y) for _, x, y in path]
     direct = math.dist(xy[0], target)
     travelled = sum(math.dist(a, b) for a, b in zip(xy, xy[1:]))
@@ -52,7 +68,17 @@ def path_metrics(path: list[tuple[float, float, float]], target: tuple[float, fl
     for a, b, c in zip(distances[first_entry:], distances[first_entry + 1:], distances[first_entry + 2:]):
         if b < a and c > b + 0.8:
             corrections += 1
-    return ActionMetrics(direct, travelled, overshoot, corrections, distances[-1], path[-1][0] * 1000, click_delay * 1000)
+    return ActionMetrics(
+        direct,
+        travelled,
+        overshoot,
+        corrections,
+        distances[-1],
+        reaction_s * 1000,
+        max(0.0, path[-1][0] - path[0][0]) * 1000,
+        click_delay * 1000,
+        click_hold_s * 1000,
+    )
 
 
 class AimLabApp:
@@ -65,20 +91,28 @@ class AimLabApp:
         self.rng = random.Random()
         self.templates = self._load_templates()
         self.running = False
+        self.mode = "human"
         self.after_id: str | None = None
         self.target_total = 20
         self.target_index = 0
-        self.cursor = (110.0, 110.0)
         self.target = (500.0, 350.0)
         self.target_radius = 24.0
+        self.target_shape = "circle"
+        self.previous_target: tuple[float, float] | None = None
         self.path: list[tuple[float, float, float]] = []
         self.path_index = 0
-        self.click_delay = 0.06
-        self.action_started = 0.0
+        self.cursor = (110.0, 110.0)
+        self.target_spawned_at = 0.0
+        self.first_move_at: float | None = None
+        self.last_move_at: float | None = None
+        self.mouse_down_at: float | None = None
+        self.click_delay = 0.0
         self.results: list[dict] = []
         self.session_folder: Path | None = None
         self.context_var = tk.StringVar(value="Gaming")
         self.size_var = tk.StringVar(value="Mix")
+        self.shape_var = tk.StringVar(value="Mix")
+        self.distance_var = tk.StringVar(value="Mix")
         self._build()
         self._redraw()
 
@@ -104,24 +138,27 @@ class AimLabApp:
         header = tk.Frame(shell, bg=BG)
         header.pack(fill="x", pady=(0, 12))
         tk.Label(header, text="Aim Lab", bg=BG, fg=TEXT, font=("Segoe UI", 23, "bold")).pack(side="left")
-        self.profile_label = tk.Label(header, text=f"{len(self.templates)} menselijke templates", bg=BG,
-                                      fg=GREEN if self.templates else RED, font=("Segoe UI", 9, "bold"))
+        self.profile_label = tk.Label(header, text=f"{len(self.templates)} profieltemplates", bg=BG,
+                                      fg=GREEN if self.templates else MUTED, font=("Segoe UI", 9, "bold"))
         self.profile_label.pack(side="right")
 
         controls = tk.Frame(shell, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
         controls.pack(fill="x", pady=(0, 10))
         row = tk.Frame(controls, bg=PANEL)
         row.pack(fill="x", padx=14, pady=11)
-        self.start_btn = self._button(row, "▶  Start", self.start, bg=PURPLE, padx=22, pady=9)
-        self.start_btn.pack(side="left")
-        self.stop_btn = self._button(row, "■  Stop", self.stop, padx=18, pady=9, state="disabled")
-        self.stop_btn.pack(side="left", padx=8)
-        tk.Label(row, text="Profiel", bg=PANEL, fg=MUTED).pack(side="left", padx=(18, 6))
-        ttk.Combobox(row, textvariable=self.context_var, values=("Gaming", "Browsing", "Werk", "Precision"),
-                     state="readonly", width=12).pack(side="left")
-        tk.Label(row, text="Targets", bg=PANEL, fg=MUTED).pack(side="left", padx=(18, 6))
-        ttk.Combobox(row, textvariable=self.size_var, values=("Mix", "Klein", "Middel", "Groot"),
-                     state="readonly", width=10).pack(side="left")
+        self.human_btn = self._button(row, "●  Zelf testen", self.start_human, bg=PURPLE, padx=18, pady=9)
+        self.human_btn.pack(side="left")
+        self.replay_btn = self._button(row, "▶  Profiel replay", self.start_replay, padx=18, pady=9)
+        self.replay_btn.pack(side="left", padx=8)
+        self.stop_btn = self._button(row, "■  Stop", self.stop, padx=16, pady=9, state="disabled")
+        self.stop_btn.pack(side="left")
+        for label, variable, values, width in (
+            ("Grootte", self.size_var, ("Mix", "Klein", "Middel", "Groot"), 8),
+            ("Vorm", self.shape_var, ("Mix", "Rond", "Vierkant"), 9),
+            ("Afstand", self.distance_var, ("Mix", "Kort", "Middel", "Lang"), 8),
+        ):
+            tk.Label(row, text=label, bg=PANEL, fg=MUTED).pack(side="left", padx=(15, 5))
+            ttk.Combobox(row, textvariable=variable, values=values, state="readonly", width=width).pack(side="left")
         self.status = tk.Label(row, text="Klaar", bg=PANEL, fg=MUTED, font=("Segoe UI", 9, "bold"))
         self.status.pack(side="right")
 
@@ -132,19 +169,22 @@ class AimLabApp:
         body.grid_rowconfigure(0, weight=1)
         stage = tk.Frame(body, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
         stage.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        self.canvas = tk.Canvas(stage, bg="#060a15", highlightthickness=0)
+        self.canvas = tk.Canvas(stage, bg="#060a15", highlightthickness=0, cursor="crosshair")
         self.canvas.pack(fill="both", expand=True, padx=12, pady=12)
         self.canvas.bind("<Configure>", lambda _e: self._redraw())
+        self.canvas.bind("<Motion>", self._on_motion)
+        self.canvas.bind("<ButtonPress-1>", self._on_press)
+        self.canvas.bind("<ButtonRelease-1>", self._on_release)
 
         side = tk.Frame(body, bg=PANEL, width=265, highlightbackground=BORDER, highlightthickness=1)
         side.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         side.grid_propagate(False)
-        tk.Label(side, text="Laatste beweging", bg=PANEL, fg=TEXT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16, pady=(16, 8))
-        self.metrics_label = tk.Label(side, text="Start de test.", bg=PANEL, fg=MUTED, justify="left",
+        tk.Label(side, text="Laatste poging", bg=PANEL, fg=TEXT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16, pady=(16, 8))
+        self.metrics_label = tk.Label(side, text="Klik op Zelf testen.", bg=PANEL, fg=MUTED, justify="left",
                                       anchor="nw", wraplength=225, font=("Segoe UI", 9))
         self.metrics_label.pack(fill="x", padx=16)
         tk.Frame(side, bg=BORDER, height=1).pack(fill="x", padx=16, pady=16)
-        tk.Label(side, text="Blauw  beweging\nPaars  overshoot / correctie\nGroen  virtueel klikmoment",
+        tk.Label(side, text="Targets variëren in:\n• klein, middel en groot\n• rond en vierkant\n• korte en lange sprongen\n• hoeken en diagonalen",
                  bg=PANEL, fg=MUTED, justify="left", font=("Segoe UI", 9)).pack(anchor="w", padx=16)
         self.summary_label = tk.Label(side, text="", bg=PANEL, fg=TEXT, justify="left", font=("Segoe UI", 9))
         self.summary_label.pack(anchor="w", padx=16, pady=(20, 0))
@@ -159,28 +199,75 @@ class AimLabApp:
             return self.rng.uniform(48, 70)
         return self.rng.choice((self.rng.uniform(10, 18), self.rng.uniform(24, 38), self.rng.uniform(48, 70)))
 
+    def _shape(self) -> str:
+        choice = self.shape_var.get()
+        if choice == "Rond":
+            return "circle"
+        if choice == "Vierkant":
+            return "square"
+        return self.rng.choice(("circle", "square"))
+
+    def _candidate_points(self, width: int, height: int, margin: float) -> list[tuple[float, float]]:
+        return [
+            (margin, margin), (width - margin, margin),
+            (margin, height - margin), (width - margin, height - margin),
+            (width * 0.5, margin), (width * 0.5, height - margin),
+            (margin, height * 0.5), (width - margin, height * 0.5),
+            (width * 0.5, height * 0.5),
+        ]
+
     def _new_target(self):
         w, h = max(500, self.canvas.winfo_width()), max(400, self.canvas.winfo_height())
         self.target_radius = self._radius()
-        margin = self.target_radius + 45
-        self.target = (self.rng.uniform(margin, w - margin), self.rng.uniform(margin, h - margin))
+        self.target_shape = self._shape()
+        margin = self.target_radius + 28
+        candidates = self._candidate_points(w, h, margin)
+        origin = self.previous_target or self.cursor
+        mode = self.distance_var.get()
+        if mode == "Mix":
+            mode = self.rng.choice(("Kort", "Middel", "Lang", "Lang"))
+        if mode == "Kort":
+            pool = [p for p in candidates if math.dist(origin, p) < min(w, h) * 0.38]
+        elif mode == "Lang":
+            pool = [p for p in candidates if math.dist(origin, p) > min(w, h) * 0.70]
+        else:
+            pool = [p for p in candidates if min(w, h) * 0.35 <= math.dist(origin, p) <= min(w, h) * 0.75]
+        if not pool:
+            pool = candidates
+        base = self.rng.choice(pool)
+        jitter = min(55.0, max(8.0, self.target_radius * 0.7))
+        self.target = (
+            min(w - margin, max(margin, base[0] + self.rng.uniform(-jitter, jitter))),
+            min(h - margin, max(margin, base[1] + self.rng.uniform(-jitter, jitter))),
+        )
+        self.previous_target = self.target
 
-    def start(self):
-        if not self.templates:
-            messagebox.showinfo("Aim Lab", "Maak eerst een muisopname met echte clicks.")
-            return
+    def _start_session(self, mode: str):
         self.stop()
+        self.mode = mode
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        self.session_folder = REPORTS / stamp
+        self.session_folder = REPORTS / f"{stamp}_{mode}"
         self.session_folder.mkdir(parents=True, exist_ok=False)
         self.results.clear()
         self.target_index = 0
         self.cursor = (110.0, 110.0)
+        self.previous_target = None
         self.running = True
-        self.start_btn.config(state="disabled")
+        self.human_btn.config(state="disabled")
+        self.replay_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        self.status.config(text="Test actief", fg=GREEN)
-        self._prepare_action()
+        self.status.config(text="Zelf klikken" if mode == "human" else "Profiel replay", fg=GREEN)
+
+    def start_human(self):
+        self._start_session("human")
+        self._prepare_human_target()
+
+    def start_replay(self):
+        if not self.templates:
+            messagebox.showinfo("Aim Lab", "Maak eerst een muisopname met echte clicks.")
+            return
+        self._start_session("replay")
+        self._prepare_replay_target()
 
     def stop(self):
         self.running = False
@@ -190,57 +277,111 @@ class AimLabApp:
             except tk.TclError:
                 pass
             self.after_id = None
-        if hasattr(self, "start_btn"):
-            self.start_btn.config(state="normal")
+        if hasattr(self, "human_btn"):
+            self.human_btn.config(state="normal")
+            self.replay_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
 
-    def _prepare_action(self):
-        if not self.running:
+    def _prepare_human_target(self):
+        if not self.running or self.mode != "human":
             return
         if self.target_index >= self.target_total:
-            self.running = False
-            self.start_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
-            self.status.config(text="Voltooid", fg=GREEN)
-            self._save_summary()
+            self._complete()
             return
         self._new_target()
-        distance = math.dist(self.cursor, self.target)
-        template = select_template(self.templates, distance, self.context_var.get(), self.rng)
+        self.path = []
+        self.first_move_at = None
+        self.last_move_at = None
+        self.mouse_down_at = None
+        self.target_spawned_at = time.perf_counter()
+        self._redraw()
+
+    def _on_motion(self, event):
+        if not self.running or self.mode != "human":
+            return
+        now = time.perf_counter()
+        if self.first_move_at is None:
+            self.first_move_at = now
+        self.last_move_at = now
+        self.cursor = (float(event.x), float(event.y))
+        self.path.append((now - self.target_spawned_at, float(event.x), float(event.y)))
+        self._redraw()
+
+    def _on_press(self, event):
+        if not self.running or self.mode != "human":
+            return
+        self.mouse_down_at = time.perf_counter()
+
+    def _on_release(self, event):
+        if not self.running or self.mode != "human" or self.mouse_down_at is None:
+            return
+        released_at = time.perf_counter()
+        hit = _inside_target(event.x, event.y, self.target, self.target_radius, self.target_shape)
+        if not hit:
+            self.status.config(text="Mis – klik het actieve target", fg=RED)
+            return
+        if not self.path:
+            self.path = [(0.0, float(event.x), float(event.y)), (0.001, float(event.x), float(event.y))]
+        click_delay = max(0.0, self.mouse_down_at - (self.last_move_at or self.mouse_down_at))
+        reaction = max(0.0, (self.first_move_at or self.mouse_down_at) - self.target_spawned_at)
+        hold = max(0.0, released_at - self.mouse_down_at)
+        self._finish_human_action(click_delay, reaction, hold)
+
+    def _finish_human_action(self, click_delay: float, reaction: float, hold: float):
+        metrics = path_metrics(self.path, self.target, self.target_radius, click_delay, reaction, hold)
+        self._save_action(metrics, source_session="human")
+        self.cursor = (self.path[-1][1], self.path[-1][2])
+        self.target_index += 1
+        self.status.config(text="Raak", fg=GREEN)
+        self.after_id = self.root.after(220, self._prepare_human_target)
+
+    def _prepare_replay_target(self):
+        if not self.running or self.mode != "replay":
+            return
+        if self.target_index >= self.target_total:
+            self._complete()
+            return
+        self._new_target()
+        template = select_template(self.templates, math.dist(self.cursor, self.target), "Gaming", self.rng)
         if template is None:
             self.stop()
             return
+        self.current_template = template
         self.path, self.click_delay = generate_target_path(template, self.cursor, self.target, self.rng, self.target_radius)
         self.path_index = 0
-        self.action_started = time.perf_counter()
-        self.current_template = template
         self._redraw()
-        self._animate_step()
+        self._animate_replay()
 
-    def _animate_step(self):
-        if not self.running:
+    def _animate_replay(self):
+        if not self.running or self.mode != "replay":
             return
         if self.path_index >= len(self.path):
-            self.after_id = self.root.after(max(1, int(self.click_delay * 1000)), self._finish_action)
+            self.after_id = self.root.after(max(1, int(self.click_delay * 1000)), self._finish_replay_action)
             return
+        _, x, y = self.path[self.path_index]
+        self.cursor = (x, y)
         self.path_index += 1
         self._redraw()
         delay = 12
         if self.path_index < len(self.path):
-            previous_t = self.path[self.path_index - 1][0]
-            next_t = self.path[self.path_index][0]
-            delay = max(4, min(60, int((next_t - previous_t) * 1000)))
-        self.after_id = self.root.after(delay, self._animate_step)
+            delay = max(4, min(60, int((self.path[self.path_index][0] - self.path[self.path_index - 1][0]) * 1000)))
+        self.after_id = self.root.after(delay, self._animate_replay)
 
-    def _finish_action(self):
+    def _finish_replay_action(self):
         metrics = path_metrics(self.path, self.target, self.target_radius, self.click_delay)
+        self._save_action(metrics, source_session=self.current_template.get("source_session", ""))
+        self.cursor = (self.path[-1][1], self.path[-1][2])
+        self.target_index += 1
+        self.after_id = self.root.after(220, self._prepare_replay_target)
+
+    def _save_action(self, metrics: ActionMetrics, source_session: str):
         record = {
             "target_index": self.target_index + 1,
-            "context": self.context_var.get(),
-            "target": {"x": self.target[0], "y": self.target[1], "radius": self.target_radius},
-            "source_session": self.current_template.get("source_session", ""),
-            "template": {key: self.current_template.get(key) for key in ("duration_s", "direct_distance", "curve_ratio", "overshoot_ratio", "corrections", "quality")},
-            "metrics": metrics.__dict__,
+            "mode": self.mode,
+            "target": {"x": self.target[0], "y": self.target[1], "radius": self.target_radius, "shape": self.target_shape},
+            "distance_mode": self.distance_var.get(),
+            "source_session": source_session,
+            "metrics": asdict(metrics),
             "path": [[round(t, 6), round(x, 3), round(y, 3)] for t, x, y in self.path],
         }
         self.results.append(record)
@@ -251,16 +392,33 @@ class AimLabApp:
             f"Target {self.target_index + 1}/{self.target_total}\n\n"
             f"Afstand: {metrics.direct_distance:.0f} px\n"
             f"Werkelijk pad: {metrics.travelled_distance:.0f} px\n"
+            f"Reactie: {metrics.reaction_ms:.0f} ms\n"
+            f"Beweegtijd: {metrics.movement_ms:.0f} ms\n"
             f"Overshoot: {metrics.overshoot_px:.1f} px\n"
             f"Correcties: {metrics.corrections}\n"
             f"Eindoffset: {metrics.final_offset_px:.1f} px\n"
-            f"Beweegtijd: {metrics.duration_ms:.0f} ms\n"
-            f"Klikdelay: {metrics.click_delay_ms:.0f} ms"
+            f"Klikdelay: {metrics.click_delay_ms:.0f} ms\n"
+            f"Klikhold: {metrics.click_hold_ms:.0f} ms"
         ))
-        self.cursor = (self.path[-1][1], self.path[-1][2])
-        self.target_index += 1
         self._update_summary()
-        self.after_id = self.root.after(260, self._prepare_action)
+
+    def _complete(self):
+        self.running = False
+        self.human_btn.config(state="normal")
+        self.replay_btn.config(state="normal")
+        self.stop_btn.config(state="disabled")
+        self.status.config(text="Voltooid", fg=GREEN)
+        if self.session_folder:
+            summary = {
+                "created": datetime.now().isoformat(timespec="seconds"),
+                "mode": self.mode,
+                "targets": len(self.results),
+                "size_mode": self.size_var.get(),
+                "shape_mode": self.shape_var.get(),
+                "distance_mode": self.distance_var.get(),
+                "results": self.results,
+            }
+            (self.session_folder / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _update_summary(self):
         if not self.results:
@@ -268,50 +426,37 @@ class AimLabApp:
         metrics = [item["metrics"] for item in self.results]
         self.summary_label.config(text=(
             f"Gemiddeld\n"
+            f"Reactie  {sum(m['reaction_ms'] for m in metrics)/len(metrics):.0f} ms\n"
+            f"Beweging  {sum(m['movement_ms'] for m in metrics)/len(metrics):.0f} ms\n"
             f"Overshoot  {sum(m['overshoot_px'] for m in metrics)/len(metrics):.1f} px\n"
-            f"Correcties  {sum(m['corrections'] for m in metrics)/len(metrics):.2f}\n"
-            f"Eindoffset  {sum(m['final_offset_px'] for m in metrics)/len(metrics):.1f} px"
+            f"Correcties  {sum(m['corrections'] for m in metrics)/len(metrics):.2f}"
         ))
 
-    def _save_summary(self):
-        if not self.session_folder:
-            return
-        summary = {
-            "created": datetime.now().isoformat(timespec="seconds"),
-            "context": self.context_var.get(),
-            "target_mode": self.size_var.get(),
-            "actions": len(self.results),
-            "template_count_available": len(self.templates),
-            "privacy": {"virtual_cursor_only": True, "external_apps_controlled": False, "keyboard_recorded": False},
-        }
-        (self.session_folder / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
-
     def _redraw(self):
+        if not hasattr(self, "canvas"):
+            return
         self.canvas.delete("all")
         w, h = self.canvas.winfo_width(), self.canvas.winfo_height()
-        for x in range(0, w, 52):
-            self.canvas.create_line(x, 0, x, h, fill="#0d1426")
-        for y in range(0, h, 52):
-            self.canvas.create_line(0, y, w, y, fill="#0d1426")
+        for x in range(0, w, 50):
+            self.canvas.create_line(x, 0, x, h, fill="#0b1223")
+        for y in range(0, h, 50):
+            self.canvas.create_line(0, y, w, y, fill="#0b1223")
         tx, ty = self.target
         r = self.target_radius
-        self.canvas.create_oval(tx-r, ty-r, tx+r, ty+r, fill="#251744", outline=PURPLE, width=2)
-        self.canvas.create_oval(tx-3, ty-3, tx+3, ty+3, fill=TEXT, outline="")
-        visible = self.path[:self.path_index]
-        if visible:
-            distances = [math.dist((x, y), self.target) for _, x, y in visible]
-            first_entry = next((i for i, value in enumerate(distances) if value <= r), len(visible))
-            for index in range(1, len(visible)):
-                _, x1, y1 = visible[index - 1]
-                _, x2, y2 = visible[index]
-                colour = BLUE if index < first_entry else PURPLE
-                self.canvas.create_line(x1, y1, x2, y2, fill=colour, width=3, smooth=True)
-            _, cx, cy = visible[-1]
+        outline = PURPLE if self.running else "#43506c"
+        if self.target_shape == "circle":
+            self.canvas.create_oval(tx-r, ty-r, tx+r, ty+r, outline=outline, width=3)
         else:
-            cx, cy = self.cursor
-        self.canvas.create_oval(cx-8, cy-8, cx+8, cy+8, fill=CYAN, outline="#ffffff")
-        if self.path_index >= len(self.path) and self.path:
-            self.canvas.create_oval(cx-13, cy-13, cx+13, cy+13, outline=GREEN, width=3)
+            self.canvas.create_rectangle(tx-r, ty-r, tx+r, ty+r, outline=outline, width=3)
+        shown_path = self.path if self.mode == "human" else self.path[:self.path_index]
+        if len(shown_path) > 1:
+            for a, b in zip(shown_path, shown_path[1:]):
+                colour = PURPLE if math.dist((b[1], b[2]), self.target) <= r * 1.5 else BLUE
+                self.canvas.create_line(a[1], a[2], b[1], b[2], fill=colour, width=3, smooth=True)
+        cx, cy = self.cursor
+        self.canvas.create_oval(cx-6, cy-6, cx+6, cy+6, fill=CYAN, outline="#ffffff")
+        self.canvas.create_text(18, 16, text=("JIJ KLIKT" if self.mode == "human" else "PROFIEL REPLAY") if self.running else "KLAAR",
+                                fill=MUTED, anchor="nw", font=("Segoe UI", 9, "bold"))
 
 
 def main():
