@@ -1,6 +1,6 @@
-# AI Mouse Hub
+# AI Mouse
 
-Moderne, minimalistische lokale Windows-demo voor het opnemen, bouwen en visueel testen van je eigen muisprofiel.
+Moderne minimalistische lokale Windows-app voor het opnemen en visueel terugspelen van je eigen muisprofiel.
 
 ## Starten
 
@@ -10,84 +10,54 @@ Hoofdapp:
 Start AI Mouse Hub.bat
 ```
 
-Losse visuele profieltest:
+Visuele profieltest:
 
 ```text
 Start Profile Click Test.bat
 ```
 
-De launchers maken automatisch een virtuele omgeving en installeren de benodigde dependency voor globale muistracking.
-
 ## Hoofdworkflow
 
-1. Kies rechts een label, bijvoorbeeld `Browsing` of `Gaming`.
+1. Kies een label, bijvoorbeeld `Browsing` of `Gaming`.
 2. Klik **Record**.
-3. Gebruik je computer normaal.
+3. Gebruik je computer normaal over al je schermen.
 4. Gebruik **Pauze/Hervat** wanneer nodig.
 5. Klik **Opslaan**.
-6. Selecteer links onderin de opname.
-7. Klik rechts onderin op de grote paarse knop **Masterprofiel maken**.
-8. Gebruik daarna **Replay profiel** of **Kliktest**.
+6. Klik **Masterprofiel maken** of **Masterprofiel vernieuwen**.
+7. Selecteer een opname en klik **Replay profiel**.
+8. Open de visuele doeltest via **Kliktest**.
 
-Zodra een profiel bestaat verandert de knop automatisch in **Masterprofiel vernieuwen**.
+## Multi-monitorvisualisatie
 
-Het profielbestand staat lokaal op:
+De hoofdapp detecteert automatisch je echte Windows-schermindeling. Ieder scherm wordt als afzonderlijk vlak getoond met:
+
+- schermnummer;
+- resolutie;
+- aanduiding van het primaire scherm;
+- een heldere highlight rond het scherm waar de cursor zich bevindt;
+- dezelfde actieve-schermweergave tijdens profielreplay.
+
+Negatieve Windows-coördinaten, bijvoorbeeld een monitor links van je primaire scherm, worden ondersteund.
+
+## Opnames openen
+
+Klik in de hoofdapp op **Open opnamemap**. Windows Verkenner opent dan direct:
 
 ```text
-data/profiles/master_profile.json
+data/recordings/
 ```
 
-## Moderne interface
-
-De hoofdapp bevat bewust alleen de belangrijkste onderdelen:
-
-- Record;
-- Pauze/Hervat;
-- Opslaan;
-- Replay profiel;
-- Kliktest;
-- een duidelijke Masterprofiel-knop;
-- live fading mouse trace.
-
-De visuele stijl gebruikt een donkere interface met subtiele paarse en blauwe gradients, afgeronde panelen en heldere statuskleuren.
+Iedere opname heeft een eigen map met `points.csv` en `metadata.json`.
 
 ## Profile Click Test
 
-De kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen.
-
-Je ziet daarbij:
-
-- het volledige profielpad;
-- approach in blauw;
-- correctie en overshoot in paars;
-- het klikmoment in groen;
-- de directe lijn als grijze referentie;
-- directe afstand, werkelijk pad, overshoot, correcties en klikafstand.
+De losse kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen. Je ziet het volledige pad, approach, correctie, overshoot, klikmoment en de directe lijn als vergelijking.
 
 De test bestuurt geen andere applicaties en verplaatst je echte Windows-cursor niet.
-
-## Wat de app doet
-
-- volgt de muis globaal over alle Windows-schermen;
-- registreert bewegingen, klikken en scrollen;
-- toont een live fading trace;
-- slaat sessies lokaal op;
-- splitst lange pauzes en verdachte cursorwarps automatisch;
-- verbindt nooit twee losse segmenten met een kunstmatige lijn;
-- speelt een veilige profielvariant uitsluitend binnen de app af.
 
 ## Privacy
 
 De app registreert geen toetsenbordinput en geen getypte tekst. Alle data blijft lokaal onder `data/`.
-
-## Mappen
-
-```text
-data/recordings/
-data/profiles/
-data/stress_lab/
-data/logs/
-```
 
 ## Veiligheidsgrens
 
