@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,54 @@ def extract_click_templates(path: Path, context: str, max_lookback_s: float = 1.
     return templates
 
 
+def extract_aim_lab_templates(root: Path) -> list[dict]:
+    """Read successful human Aim Lab actions as high-confidence templates."""
+    if not root.exists():
+        return []
+    templates: list[dict] = []
+    for actions_path in sorted(root.glob("*_human/actions.jsonl")):
+        try:
+            lines = actions_path.read_text(encoding="utf-8-sig").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                action = json.loads(line)
+                if action.get("mode") != "human" or action.get("reset"):
+                    continue
+                raw_path = action.get("path") or []
+                points = [(float(p[0]), float(p[1]), float(p[2])) for p in raw_path if len(p) >= 3]
+                template = _normalise_segment(points)
+                if template is None:
+                    continue
+                metrics = action.get("metrics") or {}
+                target = action.get("target") or {}
+                misses = int(action.get("misses", 0) or 0)
+                quality = max(0.15, template.quality - min(0.45, misses * 0.08))
+                item = HumanTemplate(
+                    template.points,
+                    template.duration_s,
+                    max(0.0, float(metrics.get("click_delay_ms", 0.0)) / 1000.0),
+                    template.direct_distance,
+                    template.travelled_distance,
+                    template.curve_ratio,
+                    template.overshoot_ratio,
+                    int(metrics.get("corrections", template.corrections)),
+                    str(action.get("context") or "Gaming"),
+                    quality,
+                ).to_dict()
+                item.update({
+                    "source_session": actions_path.parent.name,
+                    "target_radius": float(target.get("radius", 0.0) or 0.0),
+                    "target_shape": str(target.get("shape") or "unknown"),
+                    "misses": misses,
+                })
+                templates.append(item)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+    return templates
+
+
 def generate_target_path(
     template: dict,
     start: tuple[float, float],
@@ -178,5 +227,5 @@ def select_template(templates: Sequence[dict], distance: float, context: str, rn
     matching = [item for item in templates if str(item.get("context", "")).lower() == context.lower()]
     pool = matching or list(templates)
     pool = sorted(pool, key=lambda item: abs(float(item.get("direct_distance", distance)) - distance))[: max(5, len(pool) // 3)]
-    weights = [max(0.1, float(item.get("quality", 0.5))) for item in pool]
+    weights = [max(0.1, float(item.get("selection_weight", item.get("quality", 0.5)))) for item in pool]
     return rng.choices(pool, weights=weights, k=1)[0]
