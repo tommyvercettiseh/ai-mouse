@@ -1,8 +1,8 @@
 {
   "name": "AI Mouse",
   "slug": "ai-mouse",
-  "version": "0.8.0",
-  "description": "Minimalistische lokale Windows-demo voor menselijke muisprofielen, multi-monitorvisualisatie en een target-aware Aim Lab.",
+  "version": "0.9.0",
+  "description": "Minimalistische lokale Windows-demo voor menselijke muisprofielen, multi-monitorvisualisatie en een zelfgespeelde Aim Lab.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
   "secondary_commands": [
@@ -19,9 +19,10 @@
     "active-monitor-visualization",
     "open-recordings-folder",
     "human-click-template-extraction",
-    "target-aware-movement",
+    "human-played-aim-lab",
+    "target-size-shape-distance-variation",
     "overshoot-and-corrections",
-    "virtual-aim-lab",
+    "profile-replay-comparison",
     "local-action-analytics"
   ],
   "privacy": {
