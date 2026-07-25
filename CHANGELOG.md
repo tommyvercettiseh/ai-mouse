@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+- Extractie van echte pre-click-bewegingen uit opgeslagen muissessies
+- Persoonlijke templates met curve, timing, afstand, overshoot, correcties, context en kwaliteit
+- Target-aware padgenerator die echte menselijke vorm behoudt bij rotatie en schaling
+- Minimalistische Aim Lab met kleine, middelgrote en grote targets
+- Volledige lokale logging per Aim Lab-actie naar `data/aim_lab`
+- Eigen launcher: `Start Aim Lab Test.bat`
+- Tests voor template-extractie, contextselectie, curvebehoud, eindoffset en clickdelay
+
+### Changed
+- De oude rechte kliktest is vervangen door een menselijke profieltest
+- Echte clicks worden niet gekopieerd; alleen aankomst-tot-clickvertraging wordt als virtuele timing gebruikt
+- De hoofdrecorder is teruggebracht naar uitsluitend muisdata
+
+### Safety
+- Geen toetsenbordinput of getypte tekst
+- Geen externe cursorbeweging of clicks
+- Aim Lab gebruikt uitsluitend een virtuele cursor in het lokale testvenster
+
 ## 0.6.0
 
 ### Added
@@ -9,11 +30,6 @@
 - Schermnummer, resolutie en primaire-monitorstatus in het canvas
 - Knop `Open opnamemap` die direct `data/recordings` opent in Windows Verkenner
 - Nieuwe module `screen_layout.py` voor monitorgeometrie en puntdetectie
-
-### Changed
-- `Start AI Mouse Hub.bat` start nu de nieuwe moderne interface
-- Hero, statusbalk, opnamepaneel en profielpaneel zijn compacter en moderner vormgegeven
-- Versie verhoogd naar 0.6.0
 
 ### Safety
 - Replay blijft uitsluitend visueel binnen AI Mouse Hub
@@ -36,13 +52,6 @@
 - Fading trace tijdens iedere testactie
 - Directe lijn als visuele referentie
 - Metingen voor directe afstand, werkelijk pad, overshoot, correcties en klikafstand
-- Eigen Windows-launcher: `Start Profile Click Test.bat`
-- Tests voor padtransformatie, eindpunten en overshootmetingen
-
-### Safety
-- De kliktest werkt uitsluitend binnen het eigen lokale canvas
-- De test verplaatst of klikt niet in externe applicaties
-- Profielgegevens blijven lokaal
 
 ## 0.3.0
 
@@ -51,21 +60,13 @@
 - Automatische segmentatie op stilstand en lange pauzes
 - Cursorwarp-detectie op basis van afstand, tijd en snelheid
 - Replay die losse segmenten nooit kunstmatig met elkaar verbindt
-- Profielreplay met fading trace binnen de lokale app
-- Tests voor warpfiltering, pauzes en recorderstatus
-
-### Changed
-- Interface teruggebracht tot Record, Pauze, Opslaan, sessiekeuze en Replay
-- Uitgebreide analyse draait automatisch onder de motorkap
 
 ## 0.2.0
 
 ### Added
 - Globale muistracking over de volledige Windows virtual desktop
 - Ondersteuning voor meerdere schermen en negatieve schermcoördinaten
-- Registratie van bewegingen, klikken, scrollen en actief venstertitel
-- Visuele live trace en replay met instelbare fading
-- Privacy metadata en automatische installatie van `pynput`
+- Registratie van bewegingen, klikken en scrollen
 
 ## 0.1.0
 
@@ -73,4 +74,3 @@
 - Standalone lokale muisrecorder
 - Gelabelde sessies en masterprofiel
 - Replayvergelijking en Stress Lab
-- Windows-launchers, logging, tests en GitHub Actions
