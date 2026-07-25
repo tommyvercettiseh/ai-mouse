@@ -1,6 +1,6 @@
 # AI Mouse
 
-Minimalistische lokale Windows-demo voor het opnemen, analyseren en visueel afspelen van je eigen muisgedrag.
+Minimalistische lokale Windows-demo voor het opnemen, analyseren en visueel vergelijken van je eigen muisgedrag.
 
 ## Starten
 
@@ -18,40 +18,42 @@ Start Aim Lab Test.bat
 
 ## Simpele workflow
 
-1. Kies `Gaming`, `Browsing`, `Werk` of `Precision`.
-2. Klik **Record**.
-3. Gebruik je muis normaal en maak echte clicks.
-4. Klik **Opslaan**.
-5. Open **Aim Lab**.
-6. Kies context en targetgrootte.
-7. Klik **Start**.
+1. Maak normale recordings via de hoofdapp.
+2. Open **Aim Lab**.
+3. Kies targetgrootte, vorm en afstand.
+4. Klik **Zelf testen**.
+5. Klik de targets zelf aan met je echte muis.
+6. Gebruik **Profiel replay** om dezelfde soort test met je virtuele profiel te bekijken.
 
-## Wat v0.8.0 anders doet
+## Aim Lab v0.9.0
 
-De Aim Lab-test rekt niet langer één volledige sessie uit tot een rechte lijn. De app haalt afzonderlijke bewegingen vlak vóór echte clicks uit je recordings en gebruikt die als persoonlijke templates.
+De Aim Lab heeft twee modi:
 
-Per template worden onder andere bewaard:
+### Zelf testen
 
-- natuurlijke curve;
+Jij klikt de targets zelf aan. Targets variëren in:
+
+- klein, middel en groot;
+- rond en vierkant;
+- korte, middelgrote en lange afstanden;
+- hoeken, randen, diagonalen en korte sprongen.
+
+Per target worden lokaal opgeslagen:
+
+- targetpositie, vorm en grootte;
+- volledige muisroute met timestamps;
+- reactietijd;
 - bewegingstijd;
-- afstand en werkelijk afgelegd pad;
+- werkelijk afgelegd pad;
 - overshoot;
 - mini-correcties;
-- kwaliteitsscore;
-- context;
-- gemeten vertraging tussen aankomst en click.
+- eindoffset;
+- clickdelay;
+- click-holdduur.
 
-De daadwerkelijke clicks worden niet gekopieerd of uitgevoerd. De clickdelay wordt alleen als timing gebruikt voor het virtuele klikmoment in de demo.
+### Profiel replay
 
-## Aim Lab
-
-De lokale Aim Lab genereert kleine, middelgrote en grote targets. Tijdens iedere actie zie je:
-
-- het volledige persoonlijke pad;
-- approach in blauw;
-- overshoot en correcties in paars;
-- het virtuele klikmoment in groen;
-- afstand, padlengte, overshoot, correcties, eindoffset, beweegtijd en clickdelay.
+De virtuele cursor gebruikt templates uit bestaande recordings om targets af te spelen. De daadwerkelijke clicks worden niet gekopieerd of uitgevoerd.
 
 Iedere run wordt lokaal opgeslagen onder:
 
@@ -59,7 +61,15 @@ Iedere run wordt lokaal opgeslagen onder:
 data/aim_lab/
 ```
 
-Daar staan per actie het gekozen bronsegment, target, volledige gegenereerde route en alle metingen.
+## Bestaande recordings
+
+Bestaande recordings onder `data/recordings/` blijven bruikbaar. Ze leveren spontane curves, timing en pre-click-bewegingen uit echte situaties. Aim Lab-opnames zijn voor targetanalyse nog waardevoller omdat de app exact weet waar het target stond, hoe groot het was en welke vorm het had.
+
+Beste combinatie:
+
+- normale Gaming/Browsing-recordings voor spontaan gedrag;
+- zelfgespeelde Aim Lab-sessies voor nauwkeurige targetmetingen;
+- profielreplay om beide met elkaar te vergelijken.
 
 ## Multi-monitor en opnames
 
