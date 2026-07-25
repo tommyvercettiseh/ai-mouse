@@ -1,6 +1,6 @@
 # AI Mouse
 
-Moderne minimalistische lokale Windows-app voor het opnemen en visueel terugspelen van je eigen muisprofiel.
+Minimalistische lokale Windows-demo voor het opnemen, analyseren en visueel afspelen van je eigen muisgedrag.
 
 ## Starten
 
@@ -10,55 +10,69 @@ Hoofdapp:
 Start AI Mouse Hub.bat
 ```
 
-Visuele profieltest:
+Aim Lab:
 
 ```text
-Start Profile Click Test.bat
+Start Aim Lab Test.bat
 ```
 
-## Hoofdworkflow
+## Simpele workflow
 
-1. Kies een label, bijvoorbeeld `Browsing` of `Gaming`.
+1. Kies `Gaming`, `Browsing`, `Werk` of `Precision`.
 2. Klik **Record**.
-3. Gebruik je computer normaal over al je schermen.
-4. Gebruik **Pauze/Hervat** wanneer nodig.
-5. Klik **Opslaan**.
-6. Klik **Masterprofiel maken** of **Masterprofiel vernieuwen**.
-7. Selecteer een opname en klik **Replay profiel**.
-8. Open de visuele doeltest via **Kliktest**.
+3. Gebruik je muis normaal en maak echte clicks.
+4. Klik **Opslaan**.
+5. Open **Aim Lab**.
+6. Kies context en targetgrootte.
+7. Klik **Start**.
 
-## Multi-monitorvisualisatie
+## Wat v0.8.0 anders doet
 
-De hoofdapp detecteert automatisch je echte Windows-schermindeling. Ieder scherm wordt als afzonderlijk vlak getoond met:
+De Aim Lab-test rekt niet langer één volledige sessie uit tot een rechte lijn. De app haalt afzonderlijke bewegingen vlak vóór echte clicks uit je recordings en gebruikt die als persoonlijke templates.
 
-- schermnummer;
-- resolutie;
-- aanduiding van het primaire scherm;
-- een heldere highlight rond het scherm waar de cursor zich bevindt;
-- dezelfde actieve-schermweergave tijdens profielreplay.
+Per template worden onder andere bewaard:
 
-Negatieve Windows-coördinaten, bijvoorbeeld een monitor links van je primaire scherm, worden ondersteund.
+- natuurlijke curve;
+- bewegingstijd;
+- afstand en werkelijk afgelegd pad;
+- overshoot;
+- mini-correcties;
+- kwaliteitsscore;
+- context;
+- gemeten vertraging tussen aankomst en click.
 
-## Opnames openen
+De daadwerkelijke clicks worden niet gekopieerd of uitgevoerd. De clickdelay wordt alleen als timing gebruikt voor het virtuele klikmoment in de demo.
 
-Klik in de hoofdapp op **Open opnamemap**. Windows Verkenner opent dan direct:
+## Aim Lab
+
+De lokale Aim Lab genereert kleine, middelgrote en grote targets. Tijdens iedere actie zie je:
+
+- het volledige persoonlijke pad;
+- approach in blauw;
+- overshoot en correcties in paars;
+- het virtuele klikmoment in groen;
+- afstand, padlengte, overshoot, correcties, eindoffset, beweegtijd en clickdelay.
+
+Iedere run wordt lokaal opgeslagen onder:
+
+```text
+data/aim_lab/
+```
+
+Daar staan per actie het gekozen bronsegment, target, volledige gegenereerde route en alle metingen.
+
+## Multi-monitor en opnames
+
+De hoofdapp toont je echte Windows-schermindeling en markeert het actieve scherm. Met **Open opnamemap** open je direct:
 
 ```text
 data/recordings/
 ```
 
-Iedere opname heeft een eigen map met `points.csv` en `metadata.json`.
+## Privacy en grens
 
-## Profile Click Test
-
-De losse kliktest gebruikt het gebouwde masterprofiel om binnen een lokaal canvas naar willekeurige doelvlakken te bewegen. Je ziet het volledige pad, approach, correctie, overshoot, klikmoment en de directe lijn als vergelijking.
-
-De test bestuurt geen andere applicaties en verplaatst je echte Windows-cursor niet.
-
-## Privacy
-
-De app registreert geen toetsenbordinput en geen getypte tekst. Alle data blijft lokaal onder `data/`.
-
-## Veiligheidsgrens
-
-Replay en Profile Click Test zijn visuele lokale demo's en besturen geen externe applicaties.
+- Alleen muisbewegingen, clicks en scroll worden opgenomen.
+- Geen toetsenbordinput of getypte tekst.
+- Geen screenshots.
+- Alles blijft lokaal.
+- Replay en Aim Lab gebruiken een virtuele cursor en besturen geen externe applicaties.
