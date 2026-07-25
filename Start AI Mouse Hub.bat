@@ -27,14 +27,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
-".venv\Scripts\python.exe" -c "import tkinter; import pynput; from ai_mouse_hub.global_recorder import GlobalMouseRecorder" >> "data\logs\launcher.log" 2>&1
+".venv\Scripts\python.exe" -c "import tkinter; import pynput; from ai_mouse_hub.screen_layout import enumerate_monitors" >> "data\logs\launcher.log" 2>&1
 if errorlevel 1 (
   echo Een vereiste ontbreekt. Bekijk data\logs\launcher.log
   pause
   exit /b 1
 )
 
-".venv\Scripts\python.exe" -m ai_mouse_hub.main >> "data\logs\launcher.log" 2>&1
+".venv\Scripts\python.exe" -m ai_mouse_hub.modern_main >> "data\logs\launcher.log" 2>&1
 if errorlevel 1 (
   echo De hub stopte met een fout. Bekijk data\logs\launcher.log
   pause
