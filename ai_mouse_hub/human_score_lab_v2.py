@@ -6,7 +6,6 @@ import random
 import statistics
 import tkinter as tk
 from datetime import datetime
-from pathlib import Path
 from tkinter import messagebox
 
 from .core import DATA, list_sessions, load_master_profile
@@ -42,31 +41,102 @@ def _score(value: float, baseline: list[float], tolerance: float = 2.8) -> float
     return max(0.0, min(100.0, 100.0 * (1.0 - z / tolerance)))
 
 
+def _is_point(value: object) -> bool:
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) >= 2
+        and all(isinstance(part, (int, float)) for part in value[:2])
+    )
+
+
+def _is_legacy_path(value: object) -> bool:
+    return isinstance(value, list) and len(value) >= 2 and all(_is_point(point) for point in value)
+
+
 def _is_template(item: object) -> bool:
     return isinstance(item, dict) and isinstance(item.get("points"), list) and len(item["points"]) >= 2
 
 
-def _collect_nested_templates(value: object, out: list[dict]) -> None:
+def _legacy_to_template(path: list, index: int, profile: dict) -> dict | None:
+    """Convert old master-profile XY paths to the current target-template format."""
+    points = [(float(point[0]), float(point[1])) for point in path if _is_point(point)]
+    if len(points) < 2:
+        return None
+
+    start = points[0]
+    end = points[-1]
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    direct = math.hypot(dx, dy)
+    if direct < 1e-6:
+        return None
+
+    ux, uy = dx / direct, dy / direct
+    px, py = -uy, ux
+    travelled = sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+    count = len(points)
+    local = []
+    along_values = []
+    distances_to_end = []
+    for point_index, (x, y) in enumerate(points):
+        rel_x, rel_y = x - start[0], y - start[1]
+        along = (rel_x * ux + rel_y * uy) / direct
+        perpendicular = (rel_x * px + rel_y * py) / direct
+        local.append([point_index / max(1, count - 1), along, perpendicular])
+        along_values.append(along)
+        distances_to_end.append(math.dist((x, y), end) / direct)
+
+    corrections = 0
+    for a, b, c in zip(distances_to_end, distances_to_end[1:], distances_to_end[2:]):
+        if b < a and c > b + 0.002:
+            corrections += 1
+
+    features = profile.get("features") if isinstance(profile.get("features"), dict) else {}
+    step_mean = features.get("step_mean") if isinstance(features.get("step_mean"), dict) else {}
+    estimated_duration = max(0.14, min(1.8, 0.18 + count * 0.008 + float(step_mean.get("mean", 0.0)) * 0.015))
+
+    return {
+        "points": local,
+        "duration_s": estimated_duration,
+        "click_delay_s": 0.07,
+        "direct_distance": direct,
+        "travelled_distance": travelled,
+        "curve_ratio": travelled / direct,
+        "overshoot_ratio": max(0.0, max(along_values) - 1.0),
+        "corrections": corrections,
+        "context": "Legacy profile",
+        "quality": 0.65,
+        "source_session": f"legacy_master_{index}",
+        "source_type": "legacy_master_profile",
+    }
+
+
+def _collect_nested_templates(value: object, out: list[dict], profile: dict, counter: list[int]) -> None:
     if _is_template(value):
         out.append(value)
         return
+    if _is_legacy_path(value):
+        converted = _legacy_to_template(value, counter[0], profile)
+        counter[0] += 1
+        if converted:
+            out.append(converted)
+        return
     if isinstance(value, list):
         for item in value:
-            _collect_nested_templates(item, out)
+            _collect_nested_templates(item, out, profile, counter)
     elif isinstance(value, dict):
         for key, item in value.items():
             if key in {"run_results", "results", "scores"}:
                 continue
-            _collect_nested_templates(item, out)
+            _collect_nested_templates(item, out, profile, counter)
 
 
 def load_usable_templates() -> tuple[list[dict], dict]:
     profile = load_master_profile() or {}
     templates: list[dict] = []
-    _collect_nested_templates(profile, templates)
+    _collect_nested_templates(profile, templates, profile, [0])
     profile_count = len(templates)
+    legacy_count = sum(1 for item in templates if item.get("source_type") == "legacy_master_profile")
 
-    # Compatibiliteitsfallback: bouw direct uit bestaande recordings.
     recording_templates = 0
     if len(templates) < 5:
         for session in list_sessions():
@@ -79,7 +149,6 @@ def load_usable_templates() -> tuple[list[dict], dict]:
                 templates.append(item)
                 recording_templates += 1
 
-    # Ontdubbel grofweg op bron + afstand + duur + aantal punten.
     unique: dict[tuple, dict] = {}
     for item in templates:
         points = item.get("points") or []
@@ -95,6 +164,7 @@ def load_usable_templates() -> tuple[list[dict], dict]:
     aim_lab_count = int(profile.get("aim_lab_template_count", 0) or 0)
     return templates, {
         "profile_templates": profile_count,
+        "legacy_templates": legacy_count,
         "recording_fallback_templates": recording_templates,
         "usable_templates": len(templates),
         "aim_lab_templates": aim_lab_count,
@@ -128,7 +198,7 @@ def run_simulation(runs: int) -> dict:
     templates, info = load_usable_templates()
     if len(templates) < 2:
         raise ValueError(
-            "Er zijn nog geen bruikbare profieltemplates gevonden. Maak minimaal één mouse-recording met echte clicks, sla die op en probeer opnieuw."
+            "Geen bruikbare muisdata gevonden in deze lokale map. Controleer of data\\profiles\\master_profile.json of data\\recordings\\...\\points.csv aanwezig is."
         )
 
     runs = max(10, min(1000, int(runs)))
@@ -187,7 +257,7 @@ def run_simulation(runs: int) -> dict:
         "confidence_label": "goed" if confidence >= 75 else "voorlopig" if confidence >= 40 else "laag",
         "run_results": generated,
     }
-    folder = REPORTS / datetime.now().strftime("%Y%m%d_%H%M%S")
+    folder = REPORTS / datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     folder.mkdir(parents=True, exist_ok=False)
     (folder / "report.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     return result
@@ -249,23 +319,22 @@ class App:
         self.start.config(state="normal")
         self.status.config(text="Voltooid", fg=GREEN)
         scores = result["scores"]
+        info = result["data"]
         self.score.config(text=f"{scores['hesse_profile_score']:.0f} / 100")
         self.interpretation.config(text=result["interpretation"])
         self.details.config(text=(
-            f"Profielmatch          {scores['human_profile_match']:.0f} / 100\n"
-            f"Timingmatch           {scores['timing_match']:.0f} / 100\n"
-            f"Natuurlijke variatie  {scores['natural_variation']:.0f} / 100\n"
-            f"Targetgedrag          {scores['target_behaviour']:.0f} / 100\n\n"
-            f"Datavertrouwen        {scores['data_confidence']:.0f} / 100\n"
-            f"Confidence            {result['confidence_label']}"
+            f"Profielmatch       {scores['human_profile_match']:.0f} / 100\n"
+            f"Timingmatch        {scores['timing_match']:.0f} / 100\n"
+            f"Variatie           {scores['natural_variation']:.0f} / 100\n"
+            f"Targetgedrag       {scores['target_behaviour']:.0f} / 100\n\n"
+            f"Datavertrouwen     {scores['data_confidence']:.0f} / 100 ({result['confidence_label']})"
         ))
-        info = result["data"]
         self.data.config(text=(
             f"Bruikbare templates: {info['usable_templates']}\n"
             f"Uit masterprofiel: {info['profile_templates']}\n"
+            f"Legacy geconverteerd: {info['legacy_templates']}\n"
             f"Fallback recordings: {info['recording_fallback_templates']}\n"
-            f"Aim Lab-templates: {info['aim_lab_templates']}\n\n"
-            "De score vergelijkt jouw simulaties met jouw eigen baseline."
+            f"Aim Lab-templates: {info['aim_lab_templates']}"
         ))
 
 
