@@ -1,12 +1,13 @@
 {
   "name": "AI Mouse",
   "slug": "ai-mouse",
-  "version": "0.9.1",
-  "description": "Minimalistische lokale Windows-demo voor menselijke muisprofielen, multi-monitorvisualisatie en een zelfgespeelde Aim Lab.",
+  "version": "0.10.0",
+  "description": "Minimalistische lokale Windows-demo voor menselijke muisprofielen, zelfgespeelde Aim Lab-tests en een 100-run Human Score Lab.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
   "secondary_commands": [
     "Start Aim Lab Test.bat",
+    "Start Human Score Lab.bat",
     "Start Profile Stress Lab.bat"
   ],
   "default_port": 0,
@@ -25,6 +26,10 @@
     "target-size-shape-distance-variation",
     "overshoot-and-corrections",
     "profile-replay-comparison",
+    "hundred-run-profile-simulation",
+    "human-profile-scoring",
+    "data-confidence-scoring",
+    "repetition-fingerprint-check",
     "local-action-analytics"
   ],
   "privacy": {
