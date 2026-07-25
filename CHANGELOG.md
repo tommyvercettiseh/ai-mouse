@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+- Nieuwe `Human Score Lab` voor 10 tot 1000 gesimuleerde profielruns
+- Standaardtest met 100 nieuwe runs op korte, middelgrote en lange afstanden
+- Hesse Profile Score met profielmatch, timingmatch, targetgedrag, natuurlijke variatie en herhalingscontrole
+- Apart datavertrouwen op basis van het aantal beschikbare profiel- en Aim Lab-samples
+- Fingerprintcontrole om herhaalde of te voorspelbare paden te signaleren
+- Lokale rapporten onder `data/human_score_lab/`
+- Eigen Windows-launcher: `Start Human Score Lab.bat`
+- Automatische tests voor runmetrics en baseline-opbouw
+
+### Changed
+- Profielbeoordeling gebruikt expliciet een persoonlijke baseline in plaats van een algemene AI-detectorclaim
+- Lage sample-aantallen verlagen het datavertrouwen, niet automatisch de profielmatch
+
+### Safety
+- De Human Score Lab bestuurt geen echte cursor en klikt niet in externe applicaties
+- Geen toetsenbordinput, screenshots of getypte tekst
+
 ## 0.9.1
 
 ### Added
