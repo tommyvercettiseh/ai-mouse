@@ -1,25 +1,31 @@
 # Changelog
 
-## 0.5.0
-
-### Changed
-- Volledig vernieuwde moderne, minimalistische hoofdinterface
-- Donkere gradient header met paarse en blauwe accenten
-- Bediening teruggebracht tot Record, Pauze, Opslaan, Replay profiel en Kliktest
-- Masterprofiel-knop groot en permanent zichtbaar rechtsonder
-- Profielstatus toont direct of een profiel actief is
-- Kliktest kan rechtstreeks vanuit de hoofdapp worden geopend
-- Duidelijkere melding wanneer nog geen profiel bestaat
+## 0.6.0
 
 ### Added
-- Automatische knoptekst: `Masterprofiel maken` of `Masterprofiel vernieuwen`
-- Directe uitleg na het opslaan van een opname
-- Moderne grid-achtergrond voor live trace en profielreplay
+- Moderne minimalistische multi-monitorweergave in de hoofdapp
+- Automatische detectie van alle aangesloten Windows-schermen
+- Actieve schermhighlight tijdens live opname en profielreplay
+- Schermnummer, resolutie en primaire-monitorstatus in het canvas
+- Knop `Open opnamemap` die direct `data/recordings` opent in Windows Verkenner
+- Nieuwe module `screen_layout.py` voor monitorgeometrie en puntdetectie
+
+### Changed
+- `Start AI Mouse Hub.bat` start nu de nieuwe moderne interface
+- Hero, statusbalk, opnamepaneel en profielpaneel zijn compacter en moderner vormgegeven
+- Versie verhoogd naar 0.6.0
 
 ### Safety
-- Kliktest en replay blijven uitsluitend visueel binnen de lokale app
+- Replay blijft uitsluitend visueel binnen AI Mouse Hub
 - Geen toetsenbordinput of getypte tekst
-- Geen besturing van externe applicaties
+- Geen externe applicatiebesturing
+
+## 0.5.0
+
+### Added
+- Moderne minimalistische gradient-interface
+- Duidelijke knop voor masterprofiel maken en vernieuwen
+- Kliktest direct vanuit de hoofdapp openen
 
 ## 0.4.0
 
@@ -51,12 +57,6 @@
 ### Changed
 - Interface teruggebracht tot Record, Pauze, Opslaan, sessiekeuze en Replay
 - Uitgebreide analyse draait automatisch onder de motorkap
-- README herschreven rond de eenvoudige workflow
-
-### Safety
-- Verdachte jumps blijven in de ruwe opname maar worden niet als doorlopende beweging afgespeeld
-- Geen toetsenbordinput of getypte tekst
-- Replay bestuurt geen externe applicaties
 
 ## 0.2.0
 
