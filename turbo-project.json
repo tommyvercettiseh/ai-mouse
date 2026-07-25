@@ -1,41 +1,36 @@
 {
   "name": "AI Mouse",
   "slug": "ai-mouse",
-  "version": "0.10.0",
-  "description": "Minimalistische lokale Windows-demo voor menselijke muisprofielen, zelfgespeelde Aim Lab-tests en een 100-run Human Score Lab.",
+  "version": "0.11.0",
+  "description": "Minimalistische lokale Windows-muisrecorder met compact monitoroverzicht en een zelfgespeelde Aim Lab.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start AI Mouse Hub.bat",
   "secondary_commands": [
-    "Start Aim Lab Test.bat",
-    "Start Human Score Lab.bat",
-    "Start Profile Stress Lab.bat"
+    "Start Aim Lab Test.bat"
   ],
   "default_port": 0,
   "health_url": "",
   "platform": "windows",
   "capabilities": [
     "global-mouse-tracking",
-    "pause-resume",
-    "multi-monitor",
+    "mouse-button-down-up",
+    "click-hold-duration",
+    "multi-monitor-overview",
     "active-monitor-visualization",
+    "record-stop-play",
     "open-recordings-folder",
-    "human-click-template-extraction",
     "human-played-aim-lab",
-    "automatic-aim-lab-profile-update",
-    "right-click-current-action-reset",
-    "target-size-shape-distance-variation",
+    "circle-square-triangle-targets",
+    "target-size-distance-randomness",
     "overshoot-and-corrections",
-    "profile-replay-comparison",
-    "hundred-run-profile-simulation",
-    "human-profile-scoring",
-    "data-confidence-scoring",
-    "repetition-fingerprint-check",
+    "accuracy-and-click-timing",
     "local-action-analytics"
   ],
   "privacy": {
     "local_only": true,
     "keyboard_recording": false,
     "typed_text_recording": false,
+    "screenshots": false,
     "external_app_control": false
   }
 }
