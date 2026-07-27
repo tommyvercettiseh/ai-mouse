@@ -1,77 +1,108 @@
-# AI Mouse
+# AI Mouse Lab
 
-Minimalistische lokale Windows-app met twee onderdelen:
+Een minimalistische lokale Windows-app die jouw **eigen muisgedrag** vastlegt en analyseert.
 
-1. **AI Mouse Hub** voor opnemen, stoppen, afspelen en de opnamemap openen.
-2. **Aim Lab** waarin je zelf willekeurige targets aanklikt.
+De voorkant blijft bewust eenvoudig:
+
+- **Record**
+- **Stop**
+- **Play trace**
+- **Open recordings**
+- **Build profile**
+- een abstracte liveweergave van alle aangesloten schermen
+- een losse, automatisch gebalanceerde **Aim Lab**
+
+De technische analyse gebeurt op de achtergrond. De app registreert uitsluitend muisdata; geen toetsenbordinput, getypte tekst of screenshots.
 
 ## Starten
 
-Hoofdapp:
+Dubbelklik op:
 
 ```text
-Start AI Mouse Hub.bat
+Start Project.bat
 ```
 
-Aim Lab:
+Directe launchers:
 
 ```text
-Start Aim Lab Test.bat
+Start AI Mouse Lab.bat
+Start Aim Lab.bat
+Stop Project.bat
 ```
 
-## AI Mouse Hub
+De launcher maakt automatisch `.venv`, installeert dependencies en schrijft fouten naar `data/logs/launcher.log`.
 
-De hoofdapp bevat alleen de basis:
+## Wat wordt geregistreerd?
 
-- Record;
-- Stop + opslaan;
-- geselecteerde opname afspelen;
-- `data/recordings/` openen;
-- label kiezen voor Gaming, Browsing, Werk of Precision;
-- compact overzicht van alle aangesloten monitoren;
-- actieve monitor en actuele muispositie tonen.
+### Normaal gebruik
 
-Opnames worden lokaal opgeslagen onder:
+- absolute X/Y-positie over alle monitoren;
+- beweging, muisknoppen en scroll;
+- timestamps en actieve monitor;
+- snelheid, acceleratie, remfase en padverhouding;
+- korte, middellange en lange bewegingen;
+- monitorovergangen;
+- click delay en click hold;
+- automatisch onderscheid tussen normale absolute bediening en relatieve game-input.
+
+### Gaming
+
+Windows Raw Input wordt alleen voor de muis gebruikt. Daardoor blijven relatieve `dx/dy`-bewegingen doorlopen wanneer een game de cursor in het midden vasthoudt. De app bewaart onbeperkte relatieve rotatie in raw counts. Na een optionele 360°-kalibratie kan dit ook als virtuele yaw/pitch worden opgeslagen.
+
+### Aim Lab
+
+Je kiest niets zelf. De scheduler bewaakt automatisch een evenwichtige dataset:
+
+- 25% klein + dichtbij;
+- 25% klein + veraf;
+- 25% groot + dichtbij;
+- 25% groot + veraf.
+
+Rondjes, vierkanten, driehoeken en verschillende schermzones worden eveneens gebalanceerd. Per target worden route, reactie, snelheid, overshoot, correcties, eindoffset, click delay en click hold opgeslagen.
+
+## Data
 
 ```text
-data/recordings/
+data/
+├── recordings/   normale browse-, werk- en gamesessies
+├── aim_lab/      menselijke targettests
+├── profiles/     samengesteld masterprofiel
+├── logs/         launcher- en app-logboeken
+└── runtime/      PID-bestand voor Turbo Repo Hub
 ```
 
-## Aim Lab
-
-De Aim Lab kiest automatisch per target:
-
-- rondje, vierkant of driehoek;
-- klein, middel of groot;
-- korte, middelgrote of lange beweging;
-- midden, rand, hoek of diagonale sprong.
-
-Per geldig target worden onder andere opgeslagen:
-
-- volledige muisroute met timestamps;
-- targetvorm, positie en grootte;
-- accuracy en eindoffset;
-- overshoot;
-- mini-correcties;
-- reactietijd;
-- bewegingstijd;
-- clickdelay;
-- click-holdduur;
-- gemiddelde en maximale snelheid;
-- misklikken en handmatige resets.
-
-Een misklik stopt de test niet. Klik met de **rechtermuisknop** om alleen het huidige target opnieuw te starten.
-
-Aim Lab-resultaten worden lokaal opgeslagen onder:
+`Build profile` voegt alle bruikbare JSON/JSONL-sessies samen tot:
 
 ```text
-data/aim_lab/
+data/profiles/master_profile.json
 ```
 
-## Privacy
+## Turbo Repo Hub
 
-- Alleen muisbewegingen, muisknoppen en scroll worden opgenomen.
-- Geen toetsenbordinput of getypte tekst.
-- Geen screenshots.
-- Alles blijft lokaal.
-- Replay bestuurt geen externe applicaties.
+De repository bevat `turbo-project.json` met:
+
+- versie;
+- preview;
+- Windows-startcommando;
+- PID- en logbestand;
+- healthcheckcommando;
+- secundaire Aim Lab-launcher.
+
+Daardoor kan een toekomstige Turbo Repo Hub de app herkennen, starten, stoppen en controleren zonder terminalcommando's.
+
+## Veiligheidsgrens
+
+- geen keyboard recording;
+- geen screenshots;
+- geen externe app-automatisering;
+- trace playback is uitsluitend visueel binnen AI Mouse Lab;
+- alle gegevens blijven lokaal.
+
+## Ontwikkelen
+
+```powershell
+python -m pip install -r requirements.txt
+pytest
+python -m ai_mouse_lab.app
+python -m ai_mouse_lab.app --aim-lab
+```

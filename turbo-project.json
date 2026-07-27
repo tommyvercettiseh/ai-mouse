@@ -1,30 +1,36 @@
 {
-  "name": "AI Mouse",
+  "name": "AI Mouse Lab",
   "slug": "ai-mouse",
-  "version": "0.11.0",
-  "description": "Minimalistische lokale Windows-muisrecorder met compact monitoroverzicht en een zelfgespeelde Aim Lab.",
+  "version": "1.0.0",
+  "description": "Minimalistische lokale muisrecorder, automatisch gebalanceerde Aim Lab en persoonlijke traceprofielen.",
   "preview": "docs/previews/latest.svg",
-  "start_command": "Start AI Mouse Hub.bat",
+  "start_command": "Start Project.bat",
   "secondary_commands": [
-    "Start Aim Lab Test.bat"
+    {
+      "name": "AI Mouse Lab",
+      "command": "Start AI Mouse Lab.bat"
+    },
+    {
+      "name": "Aim Lab",
+      "command": "Start Aim Lab.bat",
+      "pid_file": "data/runtime/aim-lab.pid"
+    }
   ],
   "default_port": 0,
   "health_url": "",
+  "health_command": ".venv\\Scripts\\python.exe -m ai_mouse_lab.healthcheck",
+  "pid_file": "data/runtime/ai-mouse-lab.pid",
+  "log_file": "data/logs/app.log",
+  "launcher_log": "data/logs/launcher.log",
   "platform": "windows",
-  "capabilities": [
-    "global-mouse-tracking",
-    "mouse-button-down-up",
-    "click-hold-duration",
-    "multi-monitor-overview",
-    "active-monitor-visualization",
-    "record-stop-play",
-    "open-recordings-folder",
-    "human-played-aim-lab",
-    "circle-square-triangle-targets",
-    "target-size-distance-randomness",
-    "overshoot-and-corrections",
-    "accuracy-and-click-timing",
-    "local-action-analytics"
+  "app_type": "desktop",
+  "requires_terminal": false,
+  "data_directories": [
+    "data/recordings",
+    "data/aim_lab",
+    "data/profiles",
+    "data/logs",
+    "data/runtime"
   ],
   "privacy": {
     "local_only": true,
@@ -32,5 +38,6 @@
     "typed_text_recording": false,
     "screenshots": false,
     "external_app_control": false
-  }
+  },
+  "stop_command": "Stop Project.bat"
 }
