@@ -34,10 +34,10 @@ def generate_profile_trace(
     *,
     points: int = 90,
 ) -> list[tuple[float, float]]:
-    """Generate a visual trace that blends from straight to learned behaviour.
+    """Generate a confidence-weighted visual replay from learned mouse data.
 
-    At 0% confidence the path is almost linear. Learned curve and small end
-    correction are blended in gradually. This is visual replay only.
+    At 0% confidence the path is straight. Curve, micro-variation and proven
+    Aim Lab overshoot are introduced only as the data confidence grows.
     """
 
     profile = profile or load_profile()
@@ -58,12 +58,12 @@ def generate_profile_trace(
         if template:
             source_index = min(len(template) - 1, round(t * (len(template) - 1)))
             source = template[source_index]
-            if isinstance(source, list) and len(source) >= 2:
-                curve = (float(source[1]) - 0.5) * length * 0.16
+            if isinstance(source, list) and len(source) >= 3:
+                # normalize_trace stores [relative_time, forward_x, lateral_y].
+                curve = float(source[2]) * length * 0.16
         else:
             curve = math.sin(t * math.pi) * length * 0.02
 
-        # Overshoot is introduced only when Aim Lab has supplied enough evidence.
         overshoot = 0.0
         aim_count = int(profile.get("source_counts", {}).get("aim_lab_targets", 0) or 0)
         if aim_count >= 40 and t > 0.88:
