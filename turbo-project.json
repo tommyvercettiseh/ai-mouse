@@ -1,8 +1,8 @@
 {
   "name": "AI Mouse Lab",
   "slug": "ai-mouse",
-  "version": "1.0.0",
-  "description": "Minimalistische lokale muisrecorder, automatisch gebalanceerde Aim Lab en persoonlijke traceprofielen.",
+  "version": "1.1.0",
+  "description": "Minimalistische lokale muisrecorder met geïntegreerde Aim Lab, Gaming 360°, profielreplay en gescheiden scrolllogica.",
   "preview": "docs/previews/latest.svg",
   "start_command": "Start Project.bat",
   "secondary_commands": [
@@ -11,7 +11,7 @@
       "command": "Start AI Mouse Lab.bat"
     },
     {
-      "name": "Aim Lab",
+      "name": "Aim Lab compatibility launcher",
       "command": "Start Aim Lab.bat",
       "pid_file": "data/runtime/aim-lab.pid"
     }
@@ -25,6 +25,19 @@
   "platform": "windows",
   "app_type": "desktop",
   "requires_terminal": false,
+  "integrated_pages": [
+    "dashboard",
+    "aim_lab",
+    "gaming_360"
+  ],
+  "features": {
+    "fading_trace": true,
+    "stoppable_trace_playback": true,
+    "profile_replay": true,
+    "click_hold_profile": true,
+    "scroll_profile_separate": true,
+    "raw_input_gaming": true
+  },
   "data_directories": [
     "data/recordings",
     "data/aim_lab",
