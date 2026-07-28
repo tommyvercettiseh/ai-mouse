@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0 — Recorder Quality Foundation
+
+### Added
+- Fail-closed kwaliteitscontrole voor Windows Raw Input.
+- Sequence-, gap-, reject- en device-change-diagnostiek voor gaming `dx/dy`.
+- Sessiemetadata met appversie, monitorlayout, pointerinstellingen en profielschema.
+- Crashbestendige metadata- en summarywrites via tijdelijke bestanden en atomische vervanging.
+- Apart gamingprofiel dat uitsluitend goedgekeurde relatieve `dx/dy` gebruikt.
+- Kwaliteitsgewogen profielscore op dekking, volume, stabiliteit en datakwaliteit.
+- Unieke click-ID's met gekoppelde holdduur en sleepafstand.
+- Scrollburst-analyse die uitsluitend het scrollprofiel beïnvloedt.
+- Automatische tests voor geldige, te korte, corrupte en gemengde raw-inputstreams.
+
+### Changed
+- Actieve venstertitels worden alleen bij verandering gelogd, niet bij ieder muispunt.
+- Absolute desktopbeweging en relatieve gamingbeweging worden nooit als dezelfde profielbron gemengd.
+- Gaming-sessies met onvoldoende of verdachte raw input blijven beschikbaar voor diagnostiek, maar worden niet meegenomen in het masterprofiel.
+- Het masterprofiel gebruikt schema versie 3 met gescheiden absolute-, gaming-, click- en scrolllagen.
+- Profilebestanden worden atomisch vervangen om halfgeschreven profielen te voorkomen.
+
+### Safety and integrity
+- Geen toetsenbordcapture, screenshots of externe muisbesturing.
+- Bij twijfel leert het gamingprofiel niets van de betreffende sessie.
+- Raw counts worden altijd bewaard; graden zijn alleen betekenisvol met een geldige kalibratie.
+
+### Manual verification
+- Raw Input moet op de doel-pc worden getest in desktop, borderless en fullscreen.
+- Monitor-DPI en scaling moeten op de daadwerkelijke drie-monitoropstelling worden gecontroleerd.
+- Polling rates van 125, 500 en 1000 Hz moeten lokaal worden beproefd.
+
 ## 1.1.0 — Integrated learning hub
 
 ### Added
