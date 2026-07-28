@@ -4,8 +4,9 @@ import os
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
-RawCallback = Callable[[float, int, int], None]
+RawCallback = Callable[..., None]
 
 
 class RawMouseListener:
@@ -17,6 +18,8 @@ class RawMouseListener:
         self._stop = threading.Event()
         self._hwnd = None
         self._wndproc = None
+        self.error: str | None = None
+        self.ready = threading.Event()
 
     @property
     def supported(self) -> bool:
@@ -25,10 +28,13 @@ class RawMouseListener:
     def start(self) -> bool:
         if not self.supported or (self._thread and self._thread.is_alive()):
             return self.supported
+        self.error = None
+        self.ready.clear()
         self._stop.clear()
         self._thread = threading.Thread(target=self._run_windows, daemon=True)
         self._thread.start()
-        return True
+        self.ready.wait(timeout=1.5)
+        return self.ready.is_set() and self.error is None
 
     def stop(self) -> None:
         self._stop.set()
@@ -42,8 +48,17 @@ class RawMouseListener:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.5)
 
+    def _dispatch(self, clock: float, dx: int, dy: int, device_id: str) -> None:
+        try:
+            self.callback(clock, dx, dy, device_id)
+        except TypeError:
+            # Compatibility with older embedded calibration callbacks.
+            self.callback(clock, dx, dy)
+
     def _run_windows(self) -> None:
         if os.name != "nt":
+            self.error = "unsupported_platform"
+            self.ready.set()
             return
         import ctypes
         from ctypes import wintypes
@@ -72,10 +87,7 @@ class RawMouseListener:
             ]
 
         class BUTTON_STRUCT(ctypes.Structure):
-            _fields_ = [
-                ("usButtonFlags", wintypes.USHORT),
-                ("usButtonData", wintypes.USHORT),
-            ]
+            _fields_ = [("usButtonFlags", wintypes.USHORT), ("usButtonData", wintypes.USHORT)]
 
         class BUTTON_UNION(ctypes.Union):
             _anonymous_ = ("buttons",)
@@ -125,24 +137,16 @@ class RawMouseListener:
         kernel32 = ctypes.windll.kernel32
         class_name = f"AIMouseRawInput_{id(self)}"
 
-        def window_proc(hwnd, message, wparam, lparam):
+        def window_proc(hwnd: Any, message: int, wparam: Any, lparam: Any) -> int:
             if message == WM_INPUT:
                 size = wintypes.UINT(0)
                 user32.GetRawInputData(
-                    wintypes.HANDLE(lparam),
-                    RID_INPUT,
-                    None,
-                    ctypes.byref(size),
-                    ctypes.sizeof(RAWINPUTHEADER),
+                    wintypes.HANDLE(lparam), RID_INPUT, None, ctypes.byref(size), ctypes.sizeof(RAWINPUTHEADER)
                 )
                 if size.value:
                     buffer = ctypes.create_string_buffer(size.value)
                     read = user32.GetRawInputData(
-                        wintypes.HANDLE(lparam),
-                        RID_INPUT,
-                        buffer,
-                        ctypes.byref(size),
-                        ctypes.sizeof(RAWINPUTHEADER),
+                        wintypes.HANDLE(lparam), RID_INPUT, buffer, ctypes.byref(size), ctypes.sizeof(RAWINPUTHEADER)
                     )
                     if read == size.value:
                         raw = ctypes.cast(buffer, ctypes.POINTER(RAWINPUT)).contents
@@ -150,7 +154,8 @@ class RawMouseListener:
                             dx = int(raw.mouse.lLastX)
                             dy = int(raw.mouse.lLastY)
                             if dx or dy:
-                                self.callback(time.perf_counter(), dx, dy)
+                                handle_value = ctypes.cast(raw.header.hDevice, ctypes.c_void_p).value or 0
+                                self._dispatch(time.perf_counter(), dx, dy, f"raw-{handle_value:x}")
                 return 0
             if message == WM_DESTROY:
                 user32.PostQuitMessage(0)
@@ -165,32 +170,26 @@ class RawMouseListener:
 
         atom = user32.RegisterClassW(ctypes.byref(window_class))
         if not atom:
+            self.error = "register_window_class_failed"
+            self.ready.set()
             return
         hwnd = user32.CreateWindowExW(
-            0,
-            class_name,
-            class_name,
-            0,
-            0,
-            0,
-            0,
-            0,
-            HWND_MESSAGE,
-            None,
-            window_class.hInstance,
-            None,
+            0, class_name, class_name, 0, 0, 0, 0, 0, HWND_MESSAGE, None, window_class.hInstance, None
         )
         if not hwnd:
+            self.error = "create_message_window_failed"
+            self.ready.set()
             return
         self._hwnd = hwnd
 
         device = RAWINPUTDEVICE(0x01, 0x02, RIDEV_INPUTSINK, hwnd)
-        if not user32.RegisterRawInputDevices(
-            ctypes.byref(device), 1, ctypes.sizeof(RAWINPUTDEVICE)
-        ):
+        if not user32.RegisterRawInputDevices(ctypes.byref(device), 1, ctypes.sizeof(RAWINPUTDEVICE)):
+            self.error = "register_raw_input_failed"
+            self.ready.set()
             user32.DestroyWindow(hwnd)
             return
 
+        self.ready.set()
         message = wintypes.MSG()
         while not self._stop.is_set():
             result = user32.GetMessageW(ctypes.byref(message), None, 0, 0)
