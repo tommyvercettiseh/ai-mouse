@@ -42,10 +42,25 @@ def _session_dirs(root: Path) -> list[Path]:
     return sorted((path for path in root.iterdir() if path.is_dir()), key=lambda p: p.name)
 
 
-def _extract_recording_movements() -> tuple[list[dict[str, Any]], set[str], int]:
+def _recording_context(folder: Path) -> str:
+    summary_path = folder / "summary.json"
+    if not summary_path.exists():
+        return "auto"
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        return str(summary.get("dominant_input_mode") or summary.get("context") or "auto")
+    except Exception:
+        return "auto"
+
+
+def _extract_recording_data() -> tuple[
+    list[dict[str, Any]], set[str], int, list[dict[str, Any]], list[dict[str, Any]]
+]:
     monitors = discover_monitors()
     default_diagonal = statistics.fmean(item.diagonal for item in monitors)
     movements: list[dict[str, Any]] = []
+    clicks: list[dict[str, Any]] = []
+    scrolls: list[dict[str, Any]] = []
     contexts: set[str] = set()
     transitions = 0
 
@@ -53,14 +68,7 @@ def _extract_recording_movements() -> tuple[list[dict[str, Any]], set[str], int]
         rows = read_jsonl(folder / "events.jsonl")
         if not rows:
             continue
-        context = "auto"
-        summary_path = folder / "summary.json"
-        if summary_path.exists():
-            try:
-                summary = json.loads(summary_path.read_text(encoding="utf-8"))
-                context = str(summary.get("dominant_input_mode") or summary.get("context") or "auto")
-            except Exception:
-                pass
+        context = _recording_context(folder)
         contexts.add(context)
 
         path: list[tuple[float, float, float]] = []
@@ -86,9 +94,33 @@ def _extract_recording_movements() -> tuple[list[dict[str, Any]], set[str], int]
             path_monitors = path_monitors[-1:] if path_monitors else []
 
         for row in rows:
-            if row.get("type") != "move":
-                if row.get("type") == "click" and row.get("pressed"):
+            row_type = row.get("type")
+            if row_type == "click":
+                if row.get("pressed"):
                     flush()
+                elif row.get("hold_ms") is not None:
+                    clicks.append(
+                        {
+                            "context": context,
+                            "button": row.get("button", "unknown"),
+                            "hold_ms": float(row.get("hold_ms") or 0),
+                            "moved_while_held_px": float(row.get("moved_while_held_px") or 0),
+                        }
+                    )
+                continue
+            if row_type == "scroll":
+                scrolls.append(
+                    {
+                        "context": context,
+                        "direction": row.get("direction", "unknown"),
+                        "step_magnitude": float(row.get("step_magnitude") or 0),
+                        "burst_id": int(row.get("burst_id") or 0),
+                        "gap_ms": row.get("gap_from_previous_ms"),
+                        "t": float(row.get("t") or 0),
+                    }
+                )
+                continue
+            if row_type != "move":
                 continue
             try:
                 t, x, y = float(row["t"]), float(row["x"]), float(row["y"])
@@ -101,7 +133,7 @@ def _extract_recording_movements() -> tuple[list[dict[str, Any]], set[str], int]
             last_t = t
         flush()
 
-    return movements, contexts, transitions
+    return movements, contexts, transitions, clicks, scrolls
 
 
 def _extract_aim_targets() -> list[dict[str, Any]]:
@@ -111,9 +143,62 @@ def _extract_aim_targets() -> list[dict[str, Any]]:
     return [row for row in targets if row.get("click_hit")]
 
 
+def _click_profile(clicks: list[dict[str, Any]]) -> dict[str, Any]:
+    by_button: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in clicks:
+        by_button[str(row.get("button", "unknown"))].append(row)
+    return {
+        button: {
+            "count": len(rows),
+            "hold_ms": _stats([float(row["hold_ms"]) for row in rows]),
+            "moved_while_held_px": _stats(
+                [float(row["moved_while_held_px"]) for row in rows]
+            ),
+        }
+        for button, rows in by_button.items()
+    }
+
+
+def _scroll_profile(scrolls: list[dict[str, Any]]) -> dict[str, Any]:
+    bursts: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+    for row in scrolls:
+        bursts[(str(row.get("context", "auto")), int(row.get("burst_id", 0)))].append(row)
+
+    burst_lengths = [len(rows) for rows in bursts.values() if rows]
+    burst_durations = [
+        max(0.0, float(rows[-1]["t"]) - float(rows[0]["t"])) * 1000.0
+        for rows in bursts.values()
+        if rows
+    ]
+    gaps = [float(row["gap_ms"]) for row in scrolls if row.get("gap_ms") is not None]
+    magnitudes = [float(row["step_magnitude"]) for row in scrolls]
+    direction_counts: dict[str, int] = defaultdict(int)
+    for row in scrolls:
+        direction_counts[str(row.get("direction", "unknown"))] += 1
+
+    reversals = 0
+    for rows in bursts.values():
+        ordered = sorted(rows, key=lambda row: float(row.get("t", 0)))
+        for left, right in zip(ordered, ordered[1:]):
+            if left.get("direction") != right.get("direction"):
+                reversals += 1
+
+    return {
+        "event_count": len(scrolls),
+        "burst_count": len(bursts),
+        "direction_counts": dict(direction_counts),
+        "step_magnitude": _stats(magnitudes),
+        "gap_within_burst_ms": _stats(gaps),
+        "events_per_burst": _stats([float(value) for value in burst_lengths]),
+        "burst_duration_ms": _stats(burst_durations),
+        "direction_reversals": reversals,
+        "usage": "scroll_logic_only",
+    }
+
+
 def build_master_profile() -> dict[str, Any]:
     ensure_data_dirs()
-    movements, contexts, transitions = _extract_recording_movements()
+    movements, contexts, transitions, clicks, scrolls = _extract_recording_data()
     aim_targets = _extract_aim_targets()
 
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -173,7 +258,7 @@ def build_master_profile() -> dict[str, Any]:
     progress = round(movement_score + aim_score + context_score + transition_score)
 
     profile = {
-        "schema_version": 1,
+        "schema_version": 2,
         "name": "Hesse Mouse Profile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile_progress_percent": int(max(0, min(100, progress))),
@@ -181,10 +266,19 @@ def build_master_profile() -> dict[str, Any]:
             "recording_movements": len(movements),
             "aim_lab_targets": len(aim_targets),
             "monitor_transitions": transitions,
+            "click_releases": len(clicks),
+            "scroll_events": len(scrolls),
             "contexts": sorted(contexts),
         },
         "buckets": bucket_stats,
         "templates": templates,
+        "click_profile": _click_profile(clicks),
+        "scroll_profile": _scroll_profile(scrolls),
+        "profile_separation": {
+            "movement": "trace_shape_speed_corrections",
+            "click": "button_hold_and_drag",
+            "scroll": "scroll_logic_only",
+        },
         "privacy": {
             "mouse_only": True,
             "keyboard": False,
