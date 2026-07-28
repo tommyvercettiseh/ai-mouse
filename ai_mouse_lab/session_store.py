@@ -1,16 +1,31 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .paths import AIM_LAB_DIR, RECORDINGS_DIR, ensure_data_dirs
+from .environment import capture_environment
+from .paths import AIM_LAB_DIR, RECORDINGS_DIR, ROOT, ensure_data_dirs
+
+
+def _app_version() -> str:
+    try:
+        return (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        return "unknown"
+
+
+def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(temp, path)
 
 
 class SessionWriter:
-    """Append-only local session writer with one JSON object per line."""
+    """Append-only session writer with atomic metadata and recoverable state."""
 
     def __init__(self, kind: str, context: str = "auto") -> None:
         ensure_data_dirs()
@@ -35,31 +50,35 @@ class SessionWriter:
         self.event_count = 0
         self.target_count = 0
         self.started_at = datetime.now(timezone.utc)
+        self.environment = capture_environment(_app_version())
         self._write_metadata(status="recording")
 
     def _write_metadata(self, status: str) -> None:
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": self.kind,
             "context": self.context,
             "status": status,
             "started_at": self.started_at.isoformat(),
             "event_count": self.event_count,
             "target_count": self.target_count,
+            "environment": self.environment,
             "privacy": {
                 "mouse_only": True,
                 "keyboard": False,
                 "screenshots": False,
             },
         }
-        self.metadata_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        _atomic_json(self.metadata_path, payload)
 
     def write_event(self, payload: dict[str, Any]) -> None:
         with self._lock:
             self._events.write(json.dumps(payload, ensure_ascii=False) + "\n")
             self.event_count += 1
+            if self.event_count % 2000 == 0:
+                self._events.flush()
+                os.fsync(self._events.fileno())
+                self._write_metadata(status="recording")
 
     def write_target(self, payload: dict[str, Any]) -> None:
         if self._targets is None:
@@ -72,14 +91,16 @@ class SessionWriter:
         with self._lock:
             if not self._events.closed:
                 self._events.flush()
+                os.fsync(self._events.fileno())
                 self._events.close()
             if self._targets is not None and not self._targets.closed:
                 self._targets.flush()
+                os.fsync(self._targets.fileno())
                 self._targets.close()
 
         finished = datetime.now(timezone.utc)
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": self.kind,
             "context": self.context,
             "started_at": self.started_at.isoformat(),
@@ -87,11 +108,10 @@ class SessionWriter:
             "duration_s": max(0.0, (finished - self.started_at).total_seconds()),
             "event_count": self.event_count,
             "target_count": self.target_count,
+            "environment": self.environment,
             **(summary or {}),
         }
-        self.summary_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        _atomic_json(self.summary_path, payload)
         self._write_metadata(status="complete")
         return self.folder
 
