@@ -14,7 +14,10 @@ def test_zero_percent_profile_is_nearly_straight():
 
 
 def test_learned_profile_adds_curve_but_keeps_destination():
-    template = [[index / 9.0, 0.5 + 0.3 * (index / 9.0)] for index in range(10)]
+    template = [
+        [index / 9.0, index / 9.0, 0.3 * (index / 9.0)]
+        for index in range(10)
+    ]
     profile = {
         "profile_progress_percent": 80,
         "templates": [{"points": template}],
