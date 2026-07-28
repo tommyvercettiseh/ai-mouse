@@ -173,9 +173,9 @@ class MouseRecorder:
             "input_mode": self._detector.mode,
         })
 
-    def _on_raw(self, clock: float, dx: int, dy: int) -> None:
+    def _on_raw(self, clock: float, dx: int, dy: int, device_id: str = "unknown") -> None:
         self._detector.add_raw(clock, dx, dy)
-        valid, quality = self._quality.inspect(clock, dx, dy)
+        valid, quality = self._quality.inspect(clock, dx, dy, device_id)
         if not valid:
             return
         virtual = self._view.add(dx, dy)
