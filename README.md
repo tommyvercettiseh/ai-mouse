@@ -6,11 +6,13 @@ De voorkant blijft bewust eenvoudig:
 
 - **Record**
 - **Stop**
-- **Play trace**
+- **Play trace / Stop trace**
+- **Replay profile**
 - **Open recordings**
 - **Build profile**
 - een abstracte liveweergave van alle aangesloten schermen
-- een losse, automatisch gebalanceerde **Aim Lab**
+- ingebouwde **Aim Lab**
+- ingebouwde **Gaming 360°**
 
 De technische analyse gebeurt op de achtergrond. De app registreert uitsluitend muisdata; geen toetsenbordinput, getypte tekst of screenshots.
 
@@ -26,9 +28,11 @@ Directe launchers:
 
 ```text
 Start AI Mouse Lab.bat
-Start Aim Lab.bat
+Start Aim Lab.bat    # compatibility launcher
 Stop Project.bat
 ```
+
+Aim Lab en Gaming 360° zijn normaal gewoon pagina's binnen AI Mouse Lab. De losse Aim Lab-launcher blijft alleen behouden voor backwards compatibility.
 
 De launcher maakt automatisch `.venv`, installeert dependencies en schrijft fouten naar `data/logs/launcher.log`.
 
@@ -42,8 +46,21 @@ De launcher maakt automatisch `.venv`, installeert dependencies en schrijft fout
 - snelheid, acceleratie, remfase en padverhouding;
 - korte, middellange en lange bewegingen;
 - monitorovergangen;
-- click delay en click hold;
+- click down/up, holdduur en beweging tijdens vasthouden;
 - automatisch onderscheid tussen normale absolute bediening en relatieve game-input.
+
+### Scroll
+
+Scrolls worden volledig gelogd, maar uitsluitend gebruikt voor een apart scrollprofiel:
+
+- richting;
+- stapgrootte;
+- pauze tussen stappen;
+- aantal stappen per burst;
+- burstduur;
+- richtingomkeringen.
+
+Scrollgegevens veranderen nooit de vorm, snelheid of bochten van een muistrace.
 
 ### Gaming
 
@@ -59,6 +76,17 @@ Je kiest niets zelf. De scheduler bewaakt automatisch een evenwichtige dataset:
 - 25% groot + veraf.
 
 Rondjes, vierkanten, driehoeken en verschillende schermzones worden eveneens gebalanceerd. Per target worden route, reactie, snelheid, overshoot, correcties, eindoffset, click delay en click hold opgeslagen.
+
+## Traceweergave
+
+De live trace draait op een vaste renderloop. Recente segmenten zijn helder en oudere segmenten vervagen na ongeveer 1,6 seconde. Tijdens playback verandert de knop automatisch van `Play trace` naar `Stop trace`.
+
+`Replay profile` maakt een uitsluitend visuele trace:
+
+- bij 0% profielsterkte vrijwel recht;
+- bij meer data steeds meer gemeten bochten en microvariatie;
+- overshoot pas wanneer voldoende Aim Lab-targets dit ondersteunen;
+- de replay bestuurt nooit een externe applicatie.
 
 ## Data
 
@@ -77,6 +105,12 @@ data/
 data/profiles/master_profile.json
 ```
 
+Schema versie 2 houdt drie lagen bewust apart:
+
+- movementprofiel;
+- clickprofiel;
+- scrollprofiel.
+
 ## Turbo Repo Hub
 
 De repository bevat `turbo-project.json` met:
@@ -86,7 +120,7 @@ De repository bevat `turbo-project.json` met:
 - Windows-startcommando;
 - PID- en logbestand;
 - healthcheckcommando;
-- secundaire Aim Lab-launcher.
+- geïntegreerde pagina's en featureflags.
 
 Daardoor kan een toekomstige Turbo Repo Hub de app herkennen, starten, stoppen en controleren zonder terminalcommando's.
 
@@ -104,5 +138,4 @@ Daardoor kan een toekomstige Turbo Repo Hub de app herkennen, starten, stoppen e
 python -m pip install -r requirements.txt
 pytest
 python -m ai_mouse_lab.app
-python -m ai_mouse_lab.app --aim-lab
 ```
