@@ -48,6 +48,9 @@ class MouseRecorder:
         self._detector = InputModeDetector()
         self._view = RelativeViewTracker(load_calibration())
         self._running = False
+        self._click_down: dict[str, tuple[float, int, int]] = {}
+        self._last_scroll_clock: float | None = None
+        self._scroll_burst_id = 0
 
     @property
     def running(self) -> bool:
@@ -67,6 +70,9 @@ class MouseRecorder:
         self._mode_counts.clear()
         self._detector = InputModeDetector()
         self._view = RelativeViewTracker(load_calibration())
+        self._click_down.clear()
+        self._last_scroll_clock = None
+        self._scroll_burst_id = 0
 
         self._listener = mouse.Listener(
             on_move=self._on_move,
@@ -111,6 +117,17 @@ class MouseRecorder:
 
     def _on_click(self, x: int, y: int, button: Any, pressed: bool) -> None:
         now = time.perf_counter()
+        button_name = str(button).split(".")[-1]
+        hold_ms = None
+        down_x = down_y = None
+        if pressed:
+            self._click_down[button_name] = (now, int(x), int(y))
+        else:
+            down = self._click_down.pop(button_name, None)
+            if down is not None:
+                hold_ms = round(max(0.0, now - down[0]) * 1000.0, 3)
+                down_x, down_y = down[1], down[2]
+
         self._emit(
             {
                 "t": round(self._elapsed(now), 6),
@@ -118,8 +135,16 @@ class MouseRecorder:
                 "x": int(x),
                 "y": int(y),
                 "monitor": monitor_for_point(self.monitors, x, y),
-                "button": str(button).split(".")[-1],
+                "button": button_name,
                 "pressed": bool(pressed),
+                "hold_ms": hold_ms,
+                "down_x": down_x,
+                "down_y": down_y,
+                "moved_while_held_px": (
+                    round(((int(x) - down_x) ** 2 + (int(y) - down_y) ** 2) ** 0.5, 3)
+                    if down_x is not None and down_y is not None
+                    else None
+                ),
                 "input_mode": self._detector.mode,
                 "window_title": active_window_title(),
             }
@@ -127,6 +152,12 @@ class MouseRecorder:
 
     def _on_scroll(self, x: int, y: int, dx: int, dy: int) -> None:
         now = time.perf_counter()
+        gap_ms = None
+        if self._last_scroll_clock is None or now - self._last_scroll_clock > 0.45:
+            self._scroll_burst_id += 1
+        else:
+            gap_ms = round((now - self._last_scroll_clock) * 1000.0, 3)
+        self._last_scroll_clock = now
         self._emit(
             {
                 "t": round(self._elapsed(now), 6),
@@ -136,6 +167,10 @@ class MouseRecorder:
                 "monitor": monitor_for_point(self.monitors, x, y),
                 "dx": int(dx),
                 "dy": int(dy),
+                "direction": "up" if dy > 0 else "down" if dy < 0 else "horizontal",
+                "step_magnitude": abs(int(dy)) + abs(int(dx)),
+                "burst_id": self._scroll_burst_id,
+                "gap_from_previous_ms": gap_ms,
                 "input_mode": self._detector.mode,
                 "window_title": active_window_title(),
             }
@@ -179,6 +214,8 @@ class MouseRecorder:
                     "dominant_input_mode": dominant_mode,
                     "raw_input_supported": os.name == "nt",
                     "monitors": [item.to_dict() for item in self.monitors],
+                    "click_hold_logged": True,
+                    "scroll_bursts_logged": True,
                 }
             )
             self.writer = None
