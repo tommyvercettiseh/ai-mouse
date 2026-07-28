@@ -213,6 +213,7 @@ class Gaming360Page(ctk.CTkFrame):
         if counts >= 50:
             save_calibration(GamingCalibration(counts_per_360_x=counts))
             self.info.configure(text=f"Saved: {counts:,.0f} counts = 360°", text_color=GREEN)
+            self.tracker = RelativeViewTracker(load_calibration())
         else:
             self.info.configure(text="Too little movement for calibration.", text_color="#E5484D")
 
@@ -225,10 +226,15 @@ class Gaming360Page(ctk.CTkFrame):
         self.after(0, lambda: self._update(values))
 
     def _update(self, values: dict) -> None:
-        yaw = float(values.get("virtual_yaw_deg") or 0.0)
-        pitch = float(values.get("virtual_pitch_deg") or 0.0)
-        self.value.configure(text=f"Yaw {yaw:,.0f}°  ·  Pitch {pitch:,.0f}°")
-        self._draw(yaw)
+        yaw = float(values.get("yaw_deg") or 0.0)
+        pitch = float(values.get("pitch_deg") or 0.0)
+        raw_x = float(values.get("virtual_raw_x") or 0.0)
+        raw_y = float(values.get("virtual_raw_y") or 0.0)
+        if yaw or pitch:
+            self.value.configure(text=f"Yaw {yaw:,.0f}°  ·  Pitch {pitch:,.0f}°")
+        else:
+            self.value.configure(text=f"Raw X {raw_x:,.0f}  ·  Y {raw_y:,.0f}")
+        self._draw(yaw if yaw else raw_x)
 
     def _draw(self, yaw: float = 0.0) -> None:
         self.canvas.delete("all")
