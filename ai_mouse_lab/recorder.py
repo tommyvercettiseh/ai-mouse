@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .gaming import RelativeViewTracker, load_calibration
+from .input_quality import RawInputQuality
 from .mode_detector import InputModeDetector
 from .monitors import discover_monitors, monitor_for_point
 from .raw_input import RawMouseListener
@@ -33,7 +34,7 @@ def active_window_title() -> str:
 
 
 class MouseRecorder:
-    """Mouse-only global recorder. No keyboard hooks are created."""
+    """Mouse-only global recorder. Raw gaming data is quality-gated and isolated."""
 
     def __init__(self, callback: EventCallback | None = None) -> None:
         self.callback = callback
@@ -47,10 +48,12 @@ class MouseRecorder:
         self._mode_counts: Counter[str] = Counter()
         self._detector = InputModeDetector()
         self._view = RelativeViewTracker(load_calibration())
+        self._quality = RawInputQuality()
         self._running = False
-        self._click_down: dict[str, tuple[float, int, int]] = {}
-        self._last_scroll_clock: float | None = None
-        self._scroll_burst_id = 0
+        self._click_down: dict[str, tuple[float, int, int, int]] = {}
+        self._click_sequence = 0
+        self._window_title = ""
+        self._window_checked_at = 0.0
 
     @property
     def running(self) -> bool:
@@ -70,9 +73,9 @@ class MouseRecorder:
         self._mode_counts.clear()
         self._detector = InputModeDetector()
         self._view = RelativeViewTracker(load_calibration())
+        self._quality = RawInputQuality()
         self._click_down.clear()
-        self._last_scroll_clock = None
-        self._scroll_burst_id = 0
+        self._click_sequence = 0
 
         self._listener = mouse.Listener(
             on_move=self._on_move,
@@ -88,6 +91,19 @@ class MouseRecorder:
         current = absolute_clock if absolute_clock is not None else time.perf_counter()
         return max(0.0, current - self._start_clock)
 
+    def _window_context(self, now: float) -> str:
+        if now - self._window_checked_at >= 0.25:
+            title = active_window_title()
+            self._window_checked_at = now
+            if title != self._window_title:
+                self._window_title = title
+                self._emit({
+                    "t": round(self._elapsed(now), 6),
+                    "type": "window_change",
+                    "window_title": title,
+                })
+        return self._window_title
+
     def _emit(self, payload: dict[str, Any]) -> None:
         with self._lock:
             if self.writer is None:
@@ -102,93 +118,77 @@ class MouseRecorder:
     def _on_move(self, x: int, y: int) -> None:
         now = time.perf_counter()
         self._detector.add_absolute(now, x, y)
-        monitor = monitor_for_point(self.monitors, x, y)
-        self._emit(
-            {
-                "t": round(self._elapsed(now), 6),
-                "type": "move",
-                "x": int(x),
-                "y": int(y),
-                "monitor": monitor,
-                "input_mode": self._detector.mode,
-                "window_title": active_window_title(),
-            }
-        )
+        self._window_context(now)
+        self._emit({
+            "t": round(self._elapsed(now), 6),
+            "type": "move",
+            "x": int(x),
+            "y": int(y),
+            "monitor": monitor_for_point(self.monitors, x, y),
+            "input_mode": self._detector.mode,
+            "source": "absolute",
+        })
 
     def _on_click(self, x: int, y: int, button: Any, pressed: bool) -> None:
         now = time.perf_counter()
-        button_name = str(button).split(".")[-1]
-        hold_ms = None
-        down_x = down_y = None
+        name = str(button).split(".")[-1]
+        click_id: int | None = None
+        hold_ms: float | None = None
+        drag_distance_px: float | None = None
         if pressed:
-            self._click_down[button_name] = (now, int(x), int(y))
+            self._click_sequence += 1
+            click_id = self._click_sequence
+            self._click_down[name] = (now, int(x), int(y), click_id)
         else:
-            down = self._click_down.pop(button_name, None)
-            if down is not None:
-                hold_ms = round(max(0.0, now - down[0]) * 1000.0, 3)
-                down_x, down_y = down[1], down[2]
-
-        self._emit(
-            {
-                "t": round(self._elapsed(now), 6),
-                "type": "click",
-                "x": int(x),
-                "y": int(y),
-                "monitor": monitor_for_point(self.monitors, x, y),
-                "button": button_name,
-                "pressed": bool(pressed),
-                "hold_ms": hold_ms,
-                "down_x": down_x,
-                "down_y": down_y,
-                "moved_while_held_px": (
-                    round(((int(x) - down_x) ** 2 + (int(y) - down_y) ** 2) ** 0.5, 3)
-                    if down_x is not None and down_y is not None
-                    else None
-                ),
-                "input_mode": self._detector.mode,
-                "window_title": active_window_title(),
-            }
-        )
+            down = self._click_down.pop(name, None)
+            if down:
+                started, start_x, start_y, click_id = down
+                hold_ms = round(max(0.0, now - started) * 1000.0, 3)
+                drag_distance_px = round(((x - start_x) ** 2 + (y - start_y) ** 2) ** 0.5, 3)
+        self._emit({
+            "t": round(self._elapsed(now), 6),
+            "type": "click",
+            "x": int(x),
+            "y": int(y),
+            "monitor": monitor_for_point(self.monitors, x, y),
+            "button": name,
+            "pressed": bool(pressed),
+            "click_id": click_id,
+            "hold_ms": hold_ms,
+            "drag_distance_px": drag_distance_px,
+            "input_mode": self._detector.mode,
+        })
 
     def _on_scroll(self, x: int, y: int, dx: int, dy: int) -> None:
         now = time.perf_counter()
-        gap_ms = None
-        if self._last_scroll_clock is None or now - self._last_scroll_clock > 0.45:
-            self._scroll_burst_id += 1
-        else:
-            gap_ms = round((now - self._last_scroll_clock) * 1000.0, 3)
-        self._last_scroll_clock = now
-        self._emit(
-            {
-                "t": round(self._elapsed(now), 6),
-                "type": "scroll",
-                "x": int(x),
-                "y": int(y),
-                "monitor": monitor_for_point(self.monitors, x, y),
-                "dx": int(dx),
-                "dy": int(dy),
-                "direction": "up" if dy > 0 else "down" if dy < 0 else "horizontal",
-                "step_magnitude": abs(int(dy)) + abs(int(dx)),
-                "burst_id": self._scroll_burst_id,
-                "gap_from_previous_ms": gap_ms,
-                "input_mode": self._detector.mode,
-                "window_title": active_window_title(),
-            }
-        )
+        self._emit({
+            "t": round(self._elapsed(now), 6),
+            "type": "scroll",
+            "x": int(x),
+            "y": int(y),
+            "monitor": monitor_for_point(self.monitors, x, y),
+            "dx": int(dx),
+            "dy": int(dy),
+            "direction": "up" if dy > 0 else "down" if dy < 0 else "horizontal",
+            "input_mode": self._detector.mode,
+        })
 
     def _on_raw(self, clock: float, dx: int, dy: int) -> None:
         self._detector.add_raw(clock, dx, dy)
+        valid, quality = self._quality.inspect(clock, dx, dy)
+        if not valid:
+            return
         virtual = self._view.add(dx, dy)
-        self._emit(
-            {
-                "t": round(self._elapsed(clock), 6),
-                "type": "raw_move",
-                "dx": int(dx),
-                "dy": int(dy),
-                "input_mode": self._detector.mode,
-                **virtual,
-            }
-        )
+        self._emit({
+            "t": round(self._elapsed(clock), 6),
+            "type": "raw_move",
+            "dx": int(dx),
+            "dy": int(dy),
+            "input_mode": self._detector.mode,
+            "source": "raw_relative",
+            **quality,
+            **virtual,
+        })
 
     def stop(self) -> str | None:
         if not self._running:
@@ -203,20 +203,15 @@ class MouseRecorder:
 
         folder = None
         if self.writer is not None:
-            dominant_mode = (
-                self._mode_counts.most_common(1)[0][0]
-                if self._mode_counts
-                else "absolute"
-            )
-            folder = self.writer.finish(
-                {
-                    "event_types": dict(self._counts),
-                    "dominant_input_mode": dominant_mode,
-                    "raw_input_supported": os.name == "nt",
-                    "monitors": [item.to_dict() for item in self.monitors],
-                    "click_hold_logged": True,
-                    "scroll_bursts_logged": True,
-                }
-            )
+            dominant_mode = self._mode_counts.most_common(1)[0][0] if self._mode_counts else "absolute"
+            raw_supported = os.name == "nt"
+            gaming_quality = self._quality.inclusion_decision(raw_supported)
+            folder = self.writer.finish({
+                "event_types": dict(self._counts),
+                "dominant_input_mode": dominant_mode,
+                "raw_input_supported": raw_supported,
+                "gaming_quality": gaming_quality,
+                "monitors": [item.to_dict() for item in self.monitors],
+            })
             self.writer = None
         return str(folder) if folder else None
