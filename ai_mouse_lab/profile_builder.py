@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -42,40 +43,43 @@ def _session_dirs(root: Path) -> list[Path]:
     return sorted((path for path in root.iterdir() if path.is_dir()), key=lambda p: p.name)
 
 
-def _recording_context(folder: Path) -> str:
-    summary_path = folder / "summary.json"
-    if not summary_path.exists():
-        return "auto"
+def _load_summary(folder: Path) -> dict[str, Any]:
     try:
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        return str(summary.get("dominant_input_mode") or summary.get("context") or "auto")
+        return json.loads((folder / "summary.json").read_text(encoding="utf-8"))
     except Exception:
-        return "auto"
+        return {}
 
 
-def _extract_recording_data() -> tuple[
-    list[dict[str, Any]], set[str], int, list[dict[str, Any]], list[dict[str, Any]]
-]:
+def _extract_recording_data() -> dict[str, Any]:
     monitors = discover_monitors()
     default_diagonal = statistics.fmean(item.diagonal for item in monitors)
     movements: list[dict[str, Any]] = []
+    gaming_segments: list[dict[str, Any]] = []
     clicks: list[dict[str, Any]] = []
     scrolls: list[dict[str, Any]] = []
+    session_medians: list[float] = []
     contexts: set[str] = set()
     transitions = 0
+    complete_sessions = 0
+    excluded_gaming_sessions = 0
 
     for folder in _session_dirs(RECORDINGS_DIR):
         rows = read_jsonl(folder / "events.jsonl")
-        if not rows:
+        summary = _load_summary(folder)
+        if not rows or not summary:
             continue
-        context = _recording_context(folder)
+        complete_sessions += 1
+        context = str(summary.get("dominant_input_mode") or summary.get("context") or "auto")
         contexts.add(context)
 
         path: list[tuple[float, float, float]] = []
         path_monitors: list[int | None] = []
+        session_speeds: list[float] = []
+        raw_path: list[tuple[float, float, float]] = []
+        raw_x = raw_y = 0.0
         last_t: float | None = None
 
-        def flush() -> None:
+        def flush_absolute() -> None:
             nonlocal path, path_monitors, transitions
             if len(path) >= 3:
                 transition = len({item for item in path_monitors if item is not None}) > 1
@@ -83,42 +87,49 @@ def _extract_recording_data() -> tuple[
                 if metric is not None:
                     if transition:
                         transitions += 1
-                    movements.append(
-                        {
-                            "context": context,
-                            **metric.to_dict(),
-                            "normalized_trace": normalize_trace(path),
-                        }
-                    )
+                    row = {
+                        "context": "absolute",
+                        **metric.to_dict(),
+                        "normalized_trace": normalize_trace(path),
+                    }
+                    movements.append(row)
+                    session_speeds.append(float(row["mean_speed_px_s"]))
             path = path[-1:] if path else []
             path_monitors = path_monitors[-1:] if path_monitors else []
+
+        gaming_allowed = bool(summary.get("gaming_quality", {}).get("included_in_gaming_profile"))
+        if summary.get("event_types", {}).get("raw_move") and not gaming_allowed:
+            excluded_gaming_sessions += 1
 
         for row in rows:
             row_type = row.get("type")
             if row_type == "click":
                 if row.get("pressed"):
-                    flush()
+                    flush_absolute()
                 elif row.get("hold_ms") is not None:
-                    clicks.append(
-                        {
-                            "context": context,
-                            "button": row.get("button", "unknown"),
-                            "hold_ms": float(row.get("hold_ms") or 0),
-                            "moved_while_held_px": float(row.get("moved_while_held_px") or 0),
-                        }
-                    )
+                    clicks.append({
+                        "context": context,
+                        "button": row.get("button", "unknown"),
+                        "hold_ms": float(row.get("hold_ms") or 0),
+                        "drag_distance_px": float(row.get("drag_distance_px") or 0),
+                    })
                 continue
             if row_type == "scroll":
-                scrolls.append(
-                    {
-                        "context": context,
-                        "direction": row.get("direction", "unknown"),
-                        "step_magnitude": float(row.get("step_magnitude") or 0),
-                        "burst_id": int(row.get("burst_id") or 0),
-                        "gap_ms": row.get("gap_from_previous_ms"),
-                        "t": float(row.get("t") or 0),
-                    }
-                )
+                scrolls.append({
+                    "context": context,
+                    "direction": row.get("direction", "unknown"),
+                    "step_magnitude": abs(float(row.get("dy") or row.get("dx") or 0)),
+                    "t": float(row.get("t") or 0),
+                })
+                continue
+            if row_type == "raw_move" and gaming_allowed:
+                try:
+                    t = float(row["t"])
+                    raw_x += float(row["dx"])
+                    raw_y += float(row["dy"])
+                    raw_path.append((t, raw_x, raw_y))
+                except (KeyError, TypeError, ValueError):
+                    pass
                 continue
             if row_type != "move":
                 continue
@@ -127,13 +138,34 @@ def _extract_recording_data() -> tuple[
             except (KeyError, TypeError, ValueError):
                 continue
             if last_t is not None and t - last_t >= 0.35:
-                flush()
+                flush_absolute()
             path.append((t, x, y))
             path_monitors.append(row.get("monitor"))
             last_t = t
-        flush()
+        flush_absolute()
 
-    return movements, contexts, transitions, clicks, scrolls
+        if gaming_allowed and len(raw_path) >= 3:
+            metric = analyze_movement(raw_path, max(1.0, math.hypot(raw_x, raw_y)))
+            if metric is not None:
+                gaming_segments.append({
+                    "context": "gaming_raw",
+                    **metric.to_dict(),
+                    "normalized_trace": normalize_trace(raw_path),
+                })
+        if session_speeds:
+            session_medians.append(statistics.median(session_speeds))
+
+    return {
+        "movements": movements,
+        "gaming_segments": gaming_segments,
+        "clicks": clicks,
+        "scrolls": scrolls,
+        "contexts": contexts,
+        "transitions": transitions,
+        "session_medians": session_medians,
+        "complete_sessions": complete_sessions,
+        "excluded_gaming_sessions": excluded_gaming_sessions,
+    }
 
 
 def _extract_aim_targets() -> list[dict[str, Any]]:
@@ -151,77 +183,80 @@ def _click_profile(clicks: list[dict[str, Any]]) -> dict[str, Any]:
         button: {
             "count": len(rows),
             "hold_ms": _stats([float(row["hold_ms"]) for row in rows]),
-            "moved_while_held_px": _stats(
-                [float(row["moved_while_held_px"]) for row in rows]
-            ),
+            "drag_distance_px": _stats([float(row["drag_distance_px"]) for row in rows]),
         }
         for button, rows in by_button.items()
     }
 
 
 def _scroll_profile(scrolls: list[dict[str, Any]]) -> dict[str, Any]:
-    bursts: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
-    for row in scrolls:
-        bursts[(str(row.get("context", "auto")), int(row.get("burst_id", 0)))].append(row)
-
-    burst_lengths = [len(rows) for rows in bursts.values() if rows]
-    burst_durations = [
-        max(0.0, float(rows[-1]["t"]) - float(rows[0]["t"])) * 1000.0
-        for rows in bursts.values()
-        if rows
-    ]
-    gaps = [float(row["gap_ms"]) for row in scrolls if row.get("gap_ms") is not None]
-    magnitudes = [float(row["step_magnitude"]) for row in scrolls]
-    direction_counts: dict[str, int] = defaultdict(int)
-    for row in scrolls:
-        direction_counts[str(row.get("direction", "unknown"))] += 1
-
-    reversals = 0
-    for rows in bursts.values():
-        ordered = sorted(rows, key=lambda row: float(row.get("t", 0)))
-        for left, right in zip(ordered, ordered[1:]):
-            if left.get("direction") != right.get("direction"):
-                reversals += 1
-
+    if not scrolls:
+        return {"event_count": 0, "usage": "scroll_logic_only"}
+    ordered = sorted(scrolls, key=lambda row: float(row.get("t", 0)))
+    bursts: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for row in ordered:
+        if current and float(row["t"]) - float(current[-1]["t"]) > 0.22:
+            bursts.append(current)
+            current = []
+        current.append(row)
+    if current:
+        bursts.append(current)
+    directions: dict[str, int] = defaultdict(int)
+    for row in ordered:
+        directions[str(row.get("direction", "unknown"))] += 1
+    reversals = sum(
+        1
+        for burst in bursts
+        for left, right in zip(burst, burst[1:])
+        if left.get("direction") != right.get("direction")
+    )
     return {
-        "event_count": len(scrolls),
+        "event_count": len(ordered),
         "burst_count": len(bursts),
-        "direction_counts": dict(direction_counts),
-        "step_magnitude": _stats(magnitudes),
-        "gap_within_burst_ms": _stats(gaps),
-        "events_per_burst": _stats([float(value) for value in burst_lengths]),
-        "burst_duration_ms": _stats(burst_durations),
+        "direction_counts": dict(directions),
+        "step_magnitude": _stats([float(row["step_magnitude"]) for row in ordered]),
+        "events_per_burst": _stats([float(len(burst)) for burst in bursts]),
+        "burst_duration_ms": _stats([
+            max(0.0, float(burst[-1]["t"]) - float(burst[0]["t"])) * 1000.0
+            for burst in bursts
+        ]),
         "direction_reversals": reversals,
         "usage": "scroll_logic_only",
     }
 
 
+def _stability_score(session_medians: list[float]) -> float:
+    if len(session_medians) < 3:
+        return min(1.0, len(session_medians) / 3.0) * 0.4
+    mean = statistics.fmean(session_medians)
+    if mean <= 0:
+        return 0.0
+    cv = statistics.pstdev(session_medians) / mean
+    return max(0.0, min(1.0, 1.0 - cv / 0.45))
+
+
 def build_master_profile() -> dict[str, Any]:
     ensure_data_dirs()
-    movements, contexts, transitions, clicks, scrolls = _extract_recording_data()
+    data = _extract_recording_data()
+    movements = data["movements"]
+    gaming_segments = data["gaming_segments"]
+    clicks = data["clicks"]
+    scrolls = data["scrolls"]
     aim_targets = _extract_aim_targets()
 
+    all_movements = movements + gaming_segments
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for movement in movements:
-        key = f"{movement['context']}:{movement['distance_bucket']}"
-        buckets[key].append(movement)
+    for movement in all_movements:
+        buckets[f"{movement['context']}:{movement['distance_bucket']}"] .append(movement)
     for target in aim_targets:
-        key = f"aim_lab:{target.get('size_bucket', 'unknown')}:{target.get('distance_bucket', 'unknown')}"
-        buckets[key].append(target)
+        buckets[f"aim_lab:{target.get('size_bucket', 'unknown')}:{target.get('distance_bucket', 'unknown')}"] .append(target)
 
     bucket_stats: dict[str, Any] = {}
     numeric_fields = (
-        "duration_ms",
-        "mean_speed_px_s",
-        "peak_speed_px_s",
-        "efficiency",
-        "correction_count",
-        "reaction_ms",
-        "movement_ms",
-        "click_delay_ms",
-        "click_hold_ms",
-        "overshoot_px",
-        "end_offset_px",
+        "duration_ms", "mean_speed_px_s", "peak_speed_px_s", "efficiency",
+        "correction_count", "reaction_ms", "movement_ms", "click_delay_ms",
+        "click_hold_ms", "overshoot_px", "end_offset_px",
     )
     for key, rows in buckets.items():
         result: dict[str, Any] = {"count": len(rows)}
@@ -231,63 +266,58 @@ def build_master_profile() -> dict[str, Any]:
                 result[field] = _stats(values)
         bucket_stats[key] = result
 
-    templates = [
-        {
-            "context": row["context"],
-            "distance_bucket": row["distance_bucket"],
-            "metrics": {
-                key: row[key]
-                for key in (
-                    "duration_ms",
-                    "mean_speed_px_s",
-                    "peak_speed_px_s",
-                    "efficiency",
-                    "correction_count",
-                )
-            },
-            "points": row["normalized_trace"],
-        }
-        for row in movements[-400:]
-        if row.get("normalized_trace")
-    ]
+    templates = [{
+        "context": row["context"],
+        "distance_bucket": row["distance_bucket"],
+        "metrics": {key: row[key] for key in (
+            "duration_ms", "mean_speed_px_s", "peak_speed_px_s", "efficiency", "correction_count"
+        )},
+        "points": row["normalized_trace"],
+    } for row in all_movements[-600:] if row.get("normalized_trace")]
 
-    movement_score = min(1.0, len(movements) / 500.0) * 35.0
-    aim_score = min(1.0, len(aim_targets) / 300.0) * 35.0
-    context_score = min(1.0, len(contexts) / 2.0) * 15.0
-    transition_score = min(1.0, transitions / 30.0) * 15.0
-    progress = round(movement_score + aim_score + context_score + transition_score)
+    coverage = min(1.0, len(buckets) / 12.0)
+    volume = min(1.0, (len(all_movements) + len(aim_targets)) / 700.0)
+    stability = _stability_score(data["session_medians"])
+    quality = min(1.0, data["complete_sessions"] / 5.0)
+    progress = round((coverage * 0.35 + volume * 0.25 + stability * 0.25 + quality * 0.15) * 100)
 
     profile = {
-        "schema_version": 2,
+        "schema_version": 3,
         "name": "Hesse Mouse Profile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile_progress_percent": int(max(0, min(100, progress))),
+        "profile_components": {
+            "coverage_percent": round(coverage * 100),
+            "volume_percent": round(volume * 100),
+            "stability_percent": round(stability * 100),
+            "data_quality_percent": round(quality * 100),
+        },
         "source_counts": {
-            "recording_movements": len(movements),
+            "absolute_movements": len(movements),
+            "gaming_raw_segments": len(gaming_segments),
             "aim_lab_targets": len(aim_targets),
-            "monitor_transitions": transitions,
+            "monitor_transitions": data["transitions"],
             "click_releases": len(clicks),
             "scroll_events": len(scrolls),
-            "contexts": sorted(contexts),
+            "complete_sessions": data["complete_sessions"],
+            "excluded_gaming_sessions": data["excluded_gaming_sessions"],
+            "contexts": sorted(data["contexts"]),
         },
         "buckets": bucket_stats,
         "templates": templates,
         "click_profile": _click_profile(clicks),
         "scroll_profile": _scroll_profile(scrolls),
         "profile_separation": {
-            "movement": "trace_shape_speed_corrections",
+            "absolute": "desktop_pointer_coordinates",
+            "gaming_raw": "relative_dx_dy_only_after_quality_gate",
             "click": "button_hold_and_drag",
             "scroll": "scroll_logic_only",
         },
-        "privacy": {
-            "mouse_only": True,
-            "keyboard": False,
-            "screenshots": False,
-        },
+        "privacy": {"mouse_only": True, "keyboard": False, "screenshots": False},
     }
-    MASTER_PROFILE_FILE.write_text(
-        json.dumps(profile, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    temp = MASTER_PROFILE_FILE.with_suffix(".json.tmp")
+    temp.write_text(json.dumps(profile, indent=2, ensure_ascii=False), encoding="utf-8")
+    temp.replace(MASTER_PROFILE_FILE)
     return profile
 
 
